@@ -143,7 +143,6 @@ Token lexer_tokenize(struct Lexer* const lexer) {
     lexer_next(lexer);
   }
   const char c = lexer_current_character(lexer);
-  printf("# Current char \'%c\', pos %zu\n", c, lexer->current_pos);
   switch (c) {
       case '!':
         ++lexer->current_pos;
@@ -251,8 +250,6 @@ Token lexer_tokenize(struct Lexer* const lexer) {
             return (Token){.tok_type=TOKT_ILLEGAL};            
           }
         case 5:
-          printf("# case 5, %.5s\n", str);
-          // Yap67, Break, Throw, Squad, Uquad, Ubyte, Sbyte, 
           if (!strncmp(str, "Yap67", 5)) {
             return (Token){.tok_type=TOKT_YAP67};            
           } else if (!strncmp(str, "Break", 5)) {
@@ -302,7 +299,6 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         return (Token){.tok_type=TOKT_INT, .data.integer = int_sz};
       }
     }
-    printf("# REACHED END\n");
     return (Token){.tok_type=TOKT_ILLEGAL};
 }
 

@@ -43,6 +43,7 @@ const char code2_str[] = "Fun entry-point() Squad {\n  Ubyte $char;\n  LockIn $c
                         }\n      Assign $n+1 To $n;\n      If $i + $n _ 2u < 4 And $n = 2 {\n        \
                         Break;\n      }\n    }\n  }\n  Throw 0;\n}";
 
+
 const Token code2_tokens[] = {
   {.tok_type = TOKT_FUN},
   {.tok_type = TOKT_FUNCTION, .data.string = {.ptr = "entry-point", .length = 11}},
@@ -101,15 +102,36 @@ const Token code2_tokens[] = {
   {.tok_type = TOKT_THROW},
   {.tok_type = TOKT_INT, .data.integer = -5 },
   {.tok_type = TOKT_SEMICOLON},
+  {.tok_type = TOKT_RBRACE},
+  {.tok_type = TOKT_ASSIGN},
+  {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
+  {.tok_type = TOKT_PLUS},
+  {.tok_type = TOKT_INT, .data.integer = 1 },
+  {.tok_type = TOKT_TO},
+  {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
+  {.tok_type = TOKT_SEMICOLON},
+  {.tok_type = TOKT_IF},
+  {.tok_type = TOKT_VAR, .data.string = {.ptr = "i", .length = 1}},
+  {.tok_type = TOKT_PLUS},
+  {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
+  {.tok_type = TOKT_MINUS},
+  {.tok_type = TOKT_UINT, .data.uinteger = 2 },
+  {.tok_type = TOKT_LESS},
+  {.tok_type = TOKT_INT, .data.integer = 4 },
+  {.tok_type = TOKT_AND},
+  {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
+  {.tok_type = TOKT_EQ},
+  {.tok_type = TOKT_INT, .data.integer = 2 },
+  {.tok_type = TOKT_LBRACE},
   {.tok_type = TOKT_BREAK},
   {.tok_type = TOKT_SEMICOLON},
-  {.tok_type = TOKT_LBRACE},
-  {.tok_type = TOKT_LBRACE},
-  {.tok_type = TOKT_LBRACE},
+  {.tok_type = TOKT_RBRACE},
+  {.tok_type = TOKT_RBRACE},
+  {.tok_type = TOKT_RBRACE},
   {.tok_type = TOKT_THROW},
   {.tok_type = TOKT_INT, .data.integer = 0 },
   {.tok_type = TOKT_SEMICOLON},
-  {.tok_type = TOKT_LBRACE},
+  {.tok_type = TOKT_RBRACE},
 };
  
 
