@@ -136,6 +136,7 @@ size_t lexer_find_identifier_size(struct Lexer* const lexer) {
 // Allows the integer to start with 0
 size_t lexer_find_integer_size(struct Lexer* const lexer) {
   char c = lexer_current_character(lexer);
+  printf("CURR %c\n", c);
   size_t n = 0;
   while (isdigit(c)) {
     c = lexer_peek(lexer, ++n);
@@ -194,7 +195,10 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           size_t int_sz = lexer_find_integer_size(lexer); 
           assert(int_sz != 0); // Should be impossible
           uint64_t val = atoll(lexer_get_ptr(lexer));
-          if (first_digit != '0' && val == 0) { return (Token){.tok_type=TOKT_ILLEGAL}; }
+          if (first_digit != '0' && val == 0) {
+            printf("ILLEGAL TOKEN: First digit of a negative integer cannot be 0\n");
+            return (Token){.tok_type=TOKT_ILLEGAL};
+          }
           if (lexer_peek(lexer, int_sz) == 'u') {
             lexer_nextn(lexer, int_sz+1);
             return (Token){.tok_type=TOKT_UINT, .data.uinteger = int_sz};
@@ -202,20 +206,28 @@ Token lexer_tokenize(struct Lexer* const lexer) {
             lexer_nextn(lexer, int_sz);
             return (Token){.tok_type=TOKT_INT, .data.integer = int_sz};
           } 
-          
         } else {
+          printf("ILLEGAL TOKEN: Integer expected after \'-\'\n");
           return (Token){.tok_type=TOKT_ILLEGAL};
         }
       case '\'':
-        if (lexer_peek(lexer, 2) != '\'') { return (Token){.tok_type=TOKT_ILLEGAL}; }
+        if (lexer_peek(lexer, 2) != '\'') {
+          printf("ILLEGAL TOKEN: Closing single quote not found\n");
+          return (Token){.tok_type=TOKT_ILLEGAL};
+        }
+        unsigned int uint = lexer_peek(lexer, 1);
         lexer->current_pos += 3;
-        return (Token){.tok_type=TOKT_UINT, .data.uinteger = lexer_peek(lexer, 1), };
+        return (Token){.tok_type=TOKT_UINT, .data.uinteger = uint, };
       case '$':
         lexer_next(lexer);
+        size_t start = lexer->current_pos;
         size_t id_sz = lexer_find_identifier_size(lexer);
-        if (id_sz == 0) { return (Token){.tok_type=TOKT_ILLEGAL}; }
+        if (id_sz == 0) {
+          printf("ILLEGAL TOKEN: Identifier is empty\n");
+          return (Token){.tok_type=TOKT_ILLEGAL};
+        }
         lexer->current_pos += id_sz;
-        return (Token){.tok_type=TOKT_VAR, .data.string = { .ptr = &lexer->string[lexer->current_pos], .length = id_sz }};
+        return (Token){.tok_type=TOKT_VAR, .data.string = { .ptr = &lexer->string[start], .length = id_sz }};
       default:
         break;
     }
@@ -232,7 +244,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           } else if (!strncmp(str, "To", 2)) {
             return (Token){.tok_type=TOKT_TO};            
           } else {
-            return (Token){.tok_type=TOKT_ILLEGAL};            
+            goto ret_func;
           }
         case 3:
           // And, Yap, 
@@ -243,7 +255,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           } else if (!strncmp(str, "Fun", 3)) {
             return (Token){.tok_type=TOKT_FUN};            
           } else {
-            return (Token){.tok_type=TOKT_ILLEGAL};            
+            goto ret_func;
           }
         case 4:
           // Loop, Else,  
@@ -252,7 +264,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           } else if (!strncmp(str, "Else", 4)) {
             return (Token){.tok_type=TOKT_ELSE};            
           } else {
-            return (Token){.tok_type=TOKT_ILLEGAL};            
+            goto ret_func;
           }
         case 5:
           if (!strncmp(str, "Yap67", 5)) {
@@ -270,7 +282,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           } else if (!strncmp(str, "Ubyte", 5)) {
             return (Token){.tok_type=TOKT_UBYTE};            
           } else {
-            return (Token){.tok_type=TOKT_ILLEGAL};            
+            goto ret_func;
           }
         case 6:
           // LockIn
@@ -279,31 +291,35 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           } else if (!strncmp(str, "Assign", 6)) {
             return (Token){.tok_type=TOKT_ASSIGN};            
           } else {
-            return (Token){.tok_type=TOKT_ILLEGAL};            
+            goto ret_func;
           }
         case 8:
           // LockIn67
           if (!strncmp(str, "LockIn67", 8)) {
             return (Token){.tok_type=TOKT_LOCKIN67};            
           } else {
-            return (Token){.tok_type=TOKT_ILLEGAL};            
+            goto ret_func;
           }
         default:
-            return (Token){.tok_type=TOKT_FUNCTION, .data.string = {.ptr = str, id_sz} };            
+             ret_func: return (Token){.tok_type=TOKT_FUNCTION, .data.string = {.ptr = str, id_sz} };           
       }
     } else if (isdigit(c)) {
       size_t int_sz = lexer_find_integer_size(lexer); 
       assert(int_sz != 0); // Should be impossible
-      uint64_t val = atoll(lexer_get_ptr(lexer));
-      if (c != '0' && val == 0) { return (Token){.tok_type=TOKT_ILLEGAL}; }
+      int64_t val = atoll(lexer_get_ptr(lexer));
+      if (c != '0' && val == 0) {
+        printf("ILLEGAL TOKEN: First digit of a positive integer cannot be 0 (excluding 0)\n");
+        return (Token){.tok_type=TOKT_ILLEGAL};
+      }
       if (lexer_peek(lexer, int_sz) == 'u') {
         lexer_nextn(lexer, int_sz+1);
-        return (Token){.tok_type=TOKT_UINT, .data.uinteger = int_sz};
+        return (Token){.tok_type=TOKT_UINT, .data.uinteger = val};
       } else {
         lexer_nextn(lexer, int_sz);
-        return (Token){.tok_type=TOKT_INT, .data.integer = int_sz};
+        return (Token){.tok_type=TOKT_INT, .data.integer = val};
       }
     }
+    printf("ILLEGAL TOKEN: Other\n");
     return (Token){.tok_type=TOKT_ILLEGAL};
 }
 
