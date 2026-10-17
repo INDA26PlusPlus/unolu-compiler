@@ -45,6 +45,10 @@ int variable_stack_pusha(struct VariableStack* const stack, const struct Variabl
 }
 
 struct Variable* variable_stack_top(struct VariableStack* const stack) {
+  assert(stack->occupied>=0);
+  if (stack->occupied == 0) {
+    return NULL;
+  }
   return &stack->nodes[stack->occupied-1];
 }
 
@@ -87,7 +91,11 @@ int variable_table_get_offset(const struct VariableTable* const table, const cha
 }
 
 int variable_table_get_max_offset(const struct VariableTable* const table) {
-   return variable_stack_top((struct VariableStack*)&table->stack)->offset;
+  struct Variable* const top = variable_stack_top((struct VariableStack*)&table->stack);
+  if (top == NULL) {
+    return 0;
+  }
+  return top->offset;
 }
 
 int variable_table_get_total_size(const struct VariableTable* const table) {
