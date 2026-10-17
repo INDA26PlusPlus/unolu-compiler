@@ -90,6 +90,8 @@ struct Parser parser_create(struct TokenStack* const token_stack, struct ASTNode
     .next_pos = 0,
     .global_variable_table = variable_table_create(),
     .local_variable_table = NULL,
+    .current_loop_id = -1,
+    .loop_counter = 0,
   };
 
 }
@@ -124,8 +126,10 @@ int parse_integer(struct Parser* const parser) {
   Token t = parser_next(parser);
   ASTNode node;
   if (t.tok_type == TOKT_UINT) {
+      printf("UINT %d\n", t.data.uinteger);
     node = (ASTNode){.node_type = ASTN_UINT, .u.uinteger = t.data.uinteger};
   } else if (t.tok_type == TOKT_INT) {
+      printf("INT %d\n", t.data.integer);
     node = (ASTNode){.node_type = ASTN_INT, .u.integer = t.data.integer};
   } else {
     return -1;
@@ -204,6 +208,23 @@ int parse_yap(struct Parser* const parser) {
   return astnode_stack_top_idx(parser->stack);
 }
 
+int parse_lockin(struct Parser* const parser) {
+  printf("# parse_lockin\n");
+  assert(parser != NULL);
+  if (parser_next(parser).tok_type != TOKT_LOCKIN) {
+    return -1;
+  }
+  if (parser_peek(parser).tok_type != TOKT_VAR) {
+    return -1;
+  }
+  int var_idx = parse_variable(parser);
+  if (var_idx == -1) { return -1; }
+  ASTNode node = {.node_type = ASTN_LOCKIN, .u.lockin.var_idx = var_idx };
+  int res = astnode_stack_pusha(parser->stack, node);
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
+
 int parse_variable_declaration(struct Parser* const parser, const bool is_local) {
   assert(parser != NULL);
   Token t = parser_next(parser);
@@ -243,7 +264,8 @@ int parse_comparison(struct Parser* const parser);
 
 int parse_primary(struct Parser* const parser) {
   printf("# parse_primary\n");
-  switch (parser_peek(parser).tok_type) {
+  Token t = parser_peek(parser);
+  switch (t.tok_type) {
     case TOKT_VAR:
       return parse_variable(parser);
     case TOKT_UINT:
@@ -331,7 +353,8 @@ int parse_comparison(struct Parser* const parser) {
   const int left_term_idx = parse_term(parser);
   if (left_term_idx == -1) { return -1; }
   ast_node_e node_type;
-  switch (parser_peek(parser).tok_type) {
+  Token t = parser_peek(parser);
+  switch (t.tok_type) {
     case TOKT_EQ:
       node_type = ASTN_EQUALITY;
       break;
@@ -412,6 +435,38 @@ int parse_if_else(struct Parser* const parser) {
   return node_idx;
 }
 
+int parse_loop(struct Parser* const parser) {
+  printf("# parse_loop\n");
+  Token t = parser_next(parser);
+  if (t.tok_type != TOKT_LOOP) { return -1; }
+  t = parser_next(parser);
+  if (t.tok_type != TOKT_LBRACE) { return -1; }
+  int previous_loop_id = parser->current_loop_id;
+  parser->current_loop_id = parser->loop_counter++;
+  const int first_statement_idx = parse_block(parser);
+  t = parser_next(parser);
+  if (t.tok_type != TOKT_RBRACE) { return -1; }
+  int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_LOOP, .u.loop = {.first_statement_idx = first_statement_idx, .loop_id = parser->current_loop_id}});
+  parser->current_loop_id = previous_loop_id;
+  if (res) { return -1; } 
+  const int node_idx = astnode_stack_top_idx(parser->stack);
+  assert(node_idx != -1);
+  return node_idx;
+}
+
+int parse_break(struct Parser* const parser) {
+  printf("# parse_break\n");
+  assert(parser != NULL);
+  if (parser_next(parser).tok_type != TOKT_BREAK) {
+    return -1;
+  }
+  assert(parser->current_loop_id != -1);
+  ASTNode node = {.node_type = ASTN_BREAK, .u.break_stmnt.loop_id = parser->current_loop_id };
+  int res = astnode_stack_pusha(parser->stack, node);
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
+
 int parse_statement(struct Parser* const parser) {
   printf("# parse_statement\n");
   assert(parser != NULL);
@@ -423,6 +478,9 @@ int parse_statement(struct Parser* const parser) {
       break;
     case TOKT_YAP:
       node_idx = parse_yap(parser);
+      break;
+    case TOKT_LOCKIN:
+      node_idx = parse_lockin(parser);
       break;
     case TOKT_UBYTE:
     case TOKT_SBYTE:
@@ -436,6 +494,12 @@ int parse_statement(struct Parser* const parser) {
       break;
     case TOKT_IF:
       node_idx = parse_if_else(parser);
+      break;
+    case TOKT_LOOP:
+      node_idx = parse_loop(parser);
+      break;
+    case TOKT_BREAK:
+      node_idx = parse_break(parser);
       break;
     default:
       return -1;

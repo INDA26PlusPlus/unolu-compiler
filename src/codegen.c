@@ -28,7 +28,7 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
   printf("# codegen_gen_throw\n");
   assert(throw != NULL);
   if (throw->u.throw.value_idx != -1) {
-    fputs("movl ", file);
+    fputs("movq ", file);
     ASTNode* const value = astnode_stack_get_node(node_stack, throw->u.throw.value_idx);
     assert(value != NULL);
     switch (value->node_type) {
@@ -48,7 +48,7 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
         return 1;
     }
   }
-  fputs(", %eax\n", file);
+  fputs(", %rax\n", file);
   codegen_gen_return(file);
   return 0;
 }
@@ -57,8 +57,6 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
 int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_yap\n");
   assert(yap!= NULL);
-
-
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
     return 1;
@@ -100,6 +98,32 @@ int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* c
   }
   return 0;
 }
+
+int codegen_gen_lockin(FILE* const file, ASTNode* const yap, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
+  printf("# codegen_gen_lockin\n");
+  assert(yap!= NULL);
+  ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
+  if (value == NULL) {
+    return 1;
+  } else {
+    if (value->node_type != ASTN_VAR) {
+      return 2;
+    }
+    // Check global variables first
+    struct Variable* var = variable_table_get_var(&st.global_variables, value->u.var.name.ptr, value->u.var.name.len);
+    if (var == NULL) {
+      // TODO: Add local variable
+      return 3;
+    }
+    if (var->type == DT_VOID) {
+      return 4;
+    }
+    fputs("call getchar\n", file);
+    fprintf(file, "mov %%eax, GLOBAL_VARIABLES+%d(%%rip)\n", var->offset);
+  }
+  return 0;
+}
+
 int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNodeStack* const node_stack, const struct SymbolTable st);
 
 int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
@@ -122,6 +146,10 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
       break;
     case ASTN_MUL:
       fputs("mull %r10d, %r11d\n", file);
+      break;
+    case ASTN_EQUALITY:
+      // mov does not affect the flags
+      fputs("cmp %r10d, %r11d\nmovl $0, %r11d\nsete %r11b\n", file);
       break;
     default:
       return 2002;
@@ -150,6 +178,7 @@ int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNode
     case ASTN_ADD:
     case ASTN_SUB:
     case ASTN_MUL:
+    case ASTN_EQUALITY:
       ;
       int res = codegen_gen_binop(file, expr, node_stack, st);
       return res;
@@ -219,6 +248,30 @@ int codegen_gen_if_else(FILE* const file, ASTNode* const node, struct ASTNodeSta
   return 0;
 }
 
+int codegen_gen_loop(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
+  printf("# codegen_gen_loop\n");
+  assert(node->node_type == ASTN_LOOP);
+  assert(node->u.loop.first_statement_idx != -1);
+  assert(node->u.loop.loop_id != -1);
+  fprintf(file, "LOOP%d_START:\n", node->u.loop.loop_id);
+  ASTNode* const block = astnode_stack_get_node(node_stack, node->u.loop.first_statement_idx);
+  assert(block != NULL);
+  int res = codegen_gen_block(file, block, node_stack, st);
+  if (res) { return res; }
+  fprintf(file, "jmp LOOP%d_START\nLOOP%d_END:\n", node->u.loop.loop_id, node->u.loop.loop_id);
+  return 0;
+}
+
+int codegen_gen_break(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
+  (void)(node_stack);
+  (void)(st);
+  printf("# codegen_gen_break\n");
+  assert(node->node_type == ASTN_BREAK);
+  assert(node->u.break_stmnt.loop_id != -1);
+  fprintf(file, "jmp LOOP%d_END\n", node->u.break_stmnt.loop_id);
+  return 0;
+}
+
 int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_statement\n");
   assert(node != NULL);
@@ -227,8 +280,14 @@ int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeS
       return codegen_gen_throw(file, node, node_stack, st);
     case ASTN_YAP:
       return codegen_gen_yap(file, node, node_stack, st);
+    case ASTN_LOCKIN:
+      return codegen_gen_lockin(file, node, node_stack, st);
     case ASTN_ASSIGNMENT:
       return codegen_gen_assignment(file, node, node_stack, st);
+    case ASTN_LOOP:
+      return codegen_gen_loop(file, node, node_stack, st);
+    case ASTN_BREAK:
+      return codegen_gen_break(file, node, node_stack, st);
     case ASTN_IF_ELSE:
       return codegen_gen_if_else(file, node, node_stack, st);
     default:
@@ -276,7 +335,7 @@ int codegen_gen_function(FILE* const file, ASTNode* const function, struct ASTNo
   fputc('\n', file);
   codegen_print_function(file, function);
   fputs(":\nmovq %rbp, -8(%rsp)\nmovq %rsp, -16(%rsp)\nmovq %rsp, %rbp\n", file);
-  fprintf(file, "subq $%d, %%rsp\n", variable_table_get_max_offset(&function->u.function.local_variables));
+  fprintf(file, "subq $%d, %%rsp\n", 24+variable_table_get_max_offset(&function->u.function.local_variables));
 
   ASTNode* const first_statement = astnode_stack_get_node(node_stack, function->u.function.first_statement_idx);
   assert(first_statement != NULL);

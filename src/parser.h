@@ -25,6 +25,9 @@ typedef enum {
   ASTN_LESS,
   ASTN_GREAT,
   ASTN_IF_ELSE,
+  ASTN_LOCKIN,
+  ASTN_LOOP,
+  ASTN_BREAK,
 } ast_node_e;
 
 
@@ -50,6 +53,13 @@ struct ASTNode {
       int var_idx;
       bool has_else;
     } if_else;
+    struct {
+      int first_statement_idx;
+      int loop_id;
+    } loop;
+    struct {
+      int loop_id;
+    } break_stmnt;
     struct {
       enum datatype_e type;
       struct {
@@ -77,6 +87,9 @@ struct ASTNode {
     struct {
       int value_idx; 
     } yap;
+    struct {
+      int var_idx; 
+    } lockin;
     struct {
       int current_idx;
       int next_idx; // May be empty (-1)
@@ -108,6 +121,8 @@ struct Parser {
   struct ASTNodeStack* stack;
   struct VariableTable global_variable_table;
   struct VariableTable* local_variable_table;
+  int current_loop_id;
+  int loop_counter;
 };
 
 int astnode_stack_create(struct ASTNodeStack* const stack, const size_t initial_size);
