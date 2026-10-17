@@ -135,7 +135,7 @@ const Token code2_tokens[] = {
 };
  
 
-void test_code(const char* const name, int test_id, const char* const str, const size_t str_len, const Token* const tokens, const size_t num_tokens) {
+void test_tokenize(const char* const name, int test_id, const char* const str, const size_t str_len, const Token* const tokens, const size_t num_tokens) {
   struct Lexer lexer;
   TAP_TP_BEGIN(test_id, "Lexer can tokenize");
   TAP_TP_COMMENT("code: %s", name);
@@ -146,6 +146,35 @@ void test_code(const char* const name, int test_id, const char* const str, const
   }
   for (size_t i = 0; i<num_tokens; ++i) {
     Token token = lexer_tokenize(&lexer);
+    if (tokens[i].tok_type != token.tok_type) {
+      TAP_TP_COMMENT("(token index %zu) expected token type %d, got %d", i, tokens[i].tok_type, token.tok_type);
+      TAP_TP_FAIL();
+    }
+  }
+  TAP_TP_END();
+}
+
+void test_tokenize_all(const char* const name, int test_id, const char* const str, const size_t str_len, const Token* const tokens, const size_t num_tokens) {
+  struct Lexer lexer;
+  TAP_TP_BEGIN(test_id, "Lexer can tokenize");
+  TAP_TP_COMMENT("code: %s", name);
+  int res = lexer_create(&lexer, str, str_len);
+  if (res != 0) {
+    TAP_TP_COMMENT("Could not create lexer (error %d)", res);
+    TAP_TP_FAIL();
+  }
+  struct TokenStack stack;
+  res = lexer_tokenize_all(&lexer, &stack);
+  if (res) {
+      TAP_TP_COMMENT("could not tokenize all, got result %d", res);
+      TAP_TP_FAIL();
+  }
+  if (stack.occupied != num_tokens) {
+    TAP_TP_COMMENT("Tokens occupied on stack (%zu) is not equal to the number of expected tokens (%zu)", stack.occupied, num_tokens);
+    TAP_TP_FAIL();
+  }
+  for (size_t i = 0; i<num_tokens; ++i) {
+    Token token = stack.tokens[i];
     TAP_TP_COMMENT("Token %d", token.tok_type);
     if (tokens[i].tok_type != token.tok_type) {
       TAP_TP_COMMENT("(token index %zu) expected token type %d, got %d", i, tokens[i].tok_type, token.tok_type);
@@ -157,7 +186,7 @@ void test_code(const char* const name, int test_id, const char* const str, const
 
 
 int main() {
-  TAP_INIT(3, "Lexer");
+  TAP_INIT(6, "Lexer");
 
   struct Lexer lexer;
   TAP_ASSERT(lexer_create(&lexer, code1_str, sizeof(code1_str)) == 0, 1, "Create lexer (code1)");
@@ -171,22 +200,11 @@ int main() {
     }
   }
   TAP_TP_END();
-  test_code("code1", 3, code1_str, sizeof(code1_str), code1_tokens, sizeof(code1_tokens)/sizeof(Token));
-  test_code("code2", 4, code2_str, sizeof(code2_str), code2_tokens, sizeof(code2_tokens)/sizeof(Token));
-  /*
-  lexer.current_pos = 0;
-  TAP_TP_BEGIN(3, "Lexer can tokenize");
-  for (size_t i = 0; i<sizeof(tokens)/sizeof(Token); ++i) {
-    Token token = lexer_tokenize(&lexer);
-    TAP_TP_COMMENT("Token %d", token.tok_type);
-    if (tokens[i].tok_type != token.tok_type) {
-      TAP_TP_COMMENT("(token index %zu) expected token type %d, got %d", i, tokens[i].tok_type, token.tok_type);
-      TAP_TP_FAIL();
-    }
-  }
-  TAP_TP_END();
-  */
+  test_tokenize("code1", 3, code1_str, sizeof(code1_str), code1_tokens, sizeof(code1_tokens)/sizeof(Token));
+  test_tokenize("code2", 4, code2_str, sizeof(code2_str), code2_tokens, sizeof(code2_tokens)/sizeof(Token));
 
+  test_tokenize_all("code1", 5, code1_str, sizeof(code1_str), code1_tokens, sizeof(code1_tokens)/sizeof(Token));
+  test_tokenize_all("code2", 6, code2_str, sizeof(code2_str), code2_tokens, sizeof(code2_tokens)/sizeof(Token));
 
   return 0;
 }
