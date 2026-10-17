@@ -116,6 +116,11 @@ const char* lexer_get_ptr(struct Lexer* const lexer) {
   return &lexer->string[lexer->current_pos];
 }
 
+bool lexer_is_end(struct Lexer* const lexer) {
+  assert(lexer != NULL);
+  return lexer->current_pos == lexer->string_size-1;
+}
+
 size_t lexer_find_identifier_size(struct Lexer* const lexer) {
   char c = lexer_current_character(lexer);
   if (!isalpha(c)) {
@@ -303,4 +308,17 @@ Token lexer_tokenize(struct Lexer* const lexer) {
 }
 
 
+int lexer_tokenize_all(struct Lexer* const lexer, struct TokenStack* const stack) {
+  if (stack == NULL) { return 1; }
+  int res = token_stack_create(stack, TOKEN_STACK_INITIAL_ALLOC_POLICY(lexer->string_size));
+  if (res) { return 100 + res; }
+  Token t;
+  while (!lexer_is_end(lexer) && (t = lexer_tokenize(lexer)).tok_type != TOKT_ILLEGAL) {
+    res = token_stack_pusha(stack, t);
+    if (res) { return 2; }
+  }
+  printf("# %zu %zu %d\n", lexer->current_pos, lexer->string_size, lexer->string[lexer->current_pos]);
+  if (t.tok_type == TOKT_ILLEGAL) { return 3; }
+  return 0;
+}
 

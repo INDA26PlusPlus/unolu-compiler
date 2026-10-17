@@ -95,6 +95,7 @@ char lexer_peek(struct Lexer* const lexer, const size_t n);
 char lexer_next(struct Lexer* const lexer);
 const char* lexer_capture(struct Lexer* const lexer);
 Token lexer_tokenize(struct Lexer* const lexer);
+int lexer_tokenize_all(struct Lexer* const lexer, struct TokenStack* const stack);
 
 /*
 struct Lexer {
