@@ -186,7 +186,8 @@ int parse_throw(struct Parser* const parser) {
 int parse_yap(struct Parser* const parser) {
   printf("# parse_yap\n");
   assert(parser != NULL);
-  if (parser_next(parser).tok_type != TOKT_YAP) {
+  enum tok_type_e tokt = parser_next(parser).tok_type;
+  if (tokt != TOKT_YAP && tokt != TOKT_YAP67) {
     return -1;
   }
   int value_node_idx = -1;
@@ -202,7 +203,7 @@ int parse_yap(struct Parser* const parser) {
       return -1;
   }
   if (value_node_idx == -1) { return -1; }
-  ASTNode node = {.node_type = ASTN_YAP, .u.yap.value_idx = value_node_idx };
+  ASTNode node = {.node_type = tokt == TOKT_YAP ? ASTN_YAP : ASTN_YAP67, .u.yap.value_idx = value_node_idx };
   int res = astnode_stack_pusha(parser->stack, node);
   if (res) { return -1; } 
   return astnode_stack_top_idx(parser->stack);
@@ -211,7 +212,8 @@ int parse_yap(struct Parser* const parser) {
 int parse_lockin(struct Parser* const parser) {
   printf("# parse_lockin\n");
   assert(parser != NULL);
-  if (parser_next(parser).tok_type != TOKT_LOCKIN) {
+  enum tok_type_e tokt = parser_next(parser).tok_type;
+  if (tokt != TOKT_LOCKIN && tokt != TOKT_LOCKIN67) {
     return -1;
   }
   if (parser_peek(parser).tok_type != TOKT_VAR) {
@@ -219,11 +221,12 @@ int parse_lockin(struct Parser* const parser) {
   }
   int var_idx = parse_variable(parser);
   if (var_idx == -1) { return -1; }
-  ASTNode node = {.node_type = ASTN_LOCKIN, .u.lockin.var_idx = var_idx };
+  ASTNode node = {.node_type = tokt == TOKT_LOCKIN ? ASTN_LOCKIN : ASTN_LOCKIN67, .u.lockin.var_idx = var_idx };
   int res = astnode_stack_pusha(parser->stack, node);
   if (res) { return -1; } 
   return astnode_stack_top_idx(parser->stack);
 }
+
 
 int parse_variable_declaration(struct Parser* const parser, const bool is_local) {
   assert(parser != NULL);
@@ -477,9 +480,11 @@ int parse_statement(struct Parser* const parser) {
       node_idx = parse_throw(parser);
       break;
     case TOKT_YAP:
+    case TOKT_YAP67:
       node_idx = parse_yap(parser);
       break;
     case TOKT_LOCKIN:
+    case TOKT_LOCKIN67:
       node_idx = parse_lockin(parser);
       break;
     case TOKT_UBYTE:

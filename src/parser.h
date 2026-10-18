@@ -10,6 +10,7 @@ typedef enum {
   ASTN_FUNCTION,
   ASTN_THROW,
   ASTN_YAP,
+  ASTN_YAP67,
   ASTN_TOP,
   ASTN_TOP_DECL,
   ASTN_STATEMENT,
@@ -26,6 +27,7 @@ typedef enum {
   ASTN_GREAT,
   ASTN_IF_ELSE,
   ASTN_LOCKIN,
+  ASTN_LOCKIN67,
   ASTN_LOOP,
   ASTN_BREAK,
 } ast_node_e;
@@ -89,7 +91,7 @@ struct ASTNode {
     } yap;
     struct {
       int var_idx; 
-    } lockin;
+    } lockin; // Used by both lockin and lockin67
     struct {
       int current_idx;
       int next_idx; // May be empty (-1)

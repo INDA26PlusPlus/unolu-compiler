@@ -16,7 +16,7 @@ int codegen_gen_variable(FILE* const file, const char* const name_ptr, const siz
   printf("# codegen_gen_variable\n");
   int offset = variable_table_get_offset(&st.global_variables, name_ptr, name_len);
   if (offset >= 0) {
-    fprintf(file, "GLOBAL_VARIABLES+%d(%%rip)", offset);
+    fprintf(file, CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL "+%d(%%rip)", offset);
   } else {
     // TODO: Add local variables
     return 10;
@@ -28,7 +28,7 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
   printf("# codegen_gen_throw\n");
   assert(throw != NULL);
   if (throw->u.throw.value_idx != -1) {
-    fputs("movq ", file);
+    fputs("xorq %rax, %rax\nmovl ", file);
     ASTNode* const value = astnode_stack_get_node(node_stack, throw->u.throw.value_idx);
     assert(value != NULL);
     switch (value->node_type) {
@@ -48,7 +48,7 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
         return 1;
     }
   }
-  fputs(", %rax\n", file);
+  fputs(", %eax\n", file);
   codegen_gen_return(file);
   return 0;
 }
@@ -60,57 +60,116 @@ int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* c
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
     return 1;
-  } else {
-    switch (value->node_type) {
-      case ASTN_INT:
-      case ASTN_UINT:
-       fprintf(file, "movl $%d", value->u.integer);
-       break;
-     case ASTN_VAR:
-       ;
-       // Check global variables first
-       struct Variable* var = variable_table_get_var(&st.global_variables, value->u.var.name.ptr, value->u.var.name.len);
-       if (var != NULL) {
-         fputs("mov", file);
-         switch (var->type) {
-           case DT_UBYTE:
-           case DT_SBYTE:
-             fputs("zb", file);
-             // Intentionally left out break
-          case DT_UQUAD:
-          case DT_SQUAD:
-             fputc('l', file);
-             break;
-          default:
-            return 2;
-         }
-         fprintf(file, " GLOBAL_VARIABLES+%d(%%rip)", var->offset);
-       } else {
-          // TODO: Add local variables
-         return 1000;
-       } 
-
-       break;
-      default:
-       return 3;
-    }
-    fputs(", %edi\ncall putchar\n", file);
+  } 
+  switch (value->node_type) {
+    case ASTN_INT:
+     fprintf(file, "movl $%d", value->u.integer);
+     break;
+    case ASTN_UINT:
+     fprintf(file, "movl $%u", value->u.uinteger);
+     break;
+   case ASTN_VAR:
+     ;
+     // Check global variables first
+     struct Variable* var = variable_table_get_var(&st.global_variables, value->u.var.name.ptr, value->u.var.name.len);
+     if (var != NULL) {
+       fputs("mov", file);
+       switch (var->type) {
+         case DT_UBYTE:
+         case DT_SBYTE:
+           fputs("zb", file);
+           // Intentionally left out break
+        case DT_UQUAD:
+        case DT_SQUAD:
+           fputc('l', file);
+           break;
+        default:
+          return 2;
+       }
+       fprintf(file, " "CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL"+%d(%%rip)", var->offset);
+     } else {
+        // TODO: Add local variables
+       return 1000;
+     } 
+     break;
+    default:
+     return 3;
   }
+  fputs(", %edi\ncall putchar\n", file);
   return 0;
 }
 
-int codegen_gen_lockin(FILE* const file, ASTNode* const yap, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_lockin\n");
+int codegen_gen_yap67(FILE* const file, ASTNode* const yap, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
+  printf("# codegen_gen_yap\n");
   assert(yap!= NULL);
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
     return 1;
+  } 
+  struct Variable* var;
+  switch (value->node_type) {
+    case ASTN_INT:
+     fprintf(file, "movl $%d, %%esi\ncall "CODEGEN_YAP67_SIGNED_LABEL"\n", value->u.integer);
+     return 0;
+    case ASTN_UINT:
+     fprintf(file, "movl $%u, %%esi\ncall "CODEGEN_YAP67_UNSIGNED_LABEL"\n", value->u.uinteger);
+     return 0;
+   case ASTN_VAR:
+     ;
+     // Check global variables first
+     var = variable_table_get_var(&st.global_variables, value->u.var.name.ptr, value->u.var.name.len);
+     if (var != NULL) {
+       fputs("mov", file);
+       switch (var->type) {
+         case DT_UBYTE:
+         case DT_SBYTE:
+           fputs("zb", file);
+           // Intentionally left out break
+        case DT_UQUAD:
+        case DT_SQUAD:
+           fputc('l', file);
+           fprintf(file, " "CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL"+%d(%%rip), %%esi", var->offset);
+           break;
+        default:
+          return 2;
+       }
+     } else {
+        // TODO: Add local variables
+       return 1000;
+     } 
+     break;
+    default:
+     return 3;
+  }
+  fputs("\npush %rbp\ncall " , file);
+  switch (var->type) {
+    case DT_UBYTE:
+    case DT_UQUAD:
+      fputs(CODEGEN_YAP67_UNSIGNED_LABEL, file);
+      break;
+    case DT_SBYTE:
+    case DT_SQUAD:
+      fputs(CODEGEN_YAP67_SIGNED_LABEL, file);
+      break;
+    default:
+      return 4;
+  }
+  fputs("\npop %rbp\n", file);
+  return 0;
+}
+
+int codegen_gen_lockin(FILE* const file, ASTNode* const lockin, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
+  printf("# codegen_gen_lockin\n");
+  assert(lockin!= NULL);
+  ASTNode* const var_node = astnode_stack_get_node(node_stack, lockin->u.lockin.var_idx);
+  if (var_node == NULL) {
+    return 1;
   } else {
-    if (value->node_type != ASTN_VAR) {
+    if (var_node->node_type != ASTN_VAR) {
       return 2;
     }
     // Check global variables first
-    struct Variable* var = variable_table_get_var(&st.global_variables, value->u.var.name.ptr, value->u.var.name.len);
+    struct Variable* var = variable_table_get_var(&st.global_variables, var_node->u.var.name.ptr, var_node->u.var.name.len);
     if (var == NULL) {
       // TODO: Add local variable
       return 3;
@@ -119,10 +178,41 @@ int codegen_gen_lockin(FILE* const file, ASTNode* const yap, struct ASTNodeStack
       return 4;
     }
     fputs("call getchar\n", file);
-    fprintf(file, "mov %%eax, GLOBAL_VARIABLES+%d(%%rip)\n", var->offset);
+    fprintf(file, "mov %%eax, "CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL"+%d(%%rip)\n", var->offset);
   }
   return 0;
 }
+
+int codegen_gen_lockin67(FILE* const file, ASTNode* const lockin, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
+  printf("# codegen_gen_lockin67\n");
+  assert(lockin!= NULL);
+  ASTNode* const var_node = astnode_stack_get_node(node_stack, lockin->u.lockin.var_idx);
+  if (var_node == NULL) {
+    return 1;
+  } else {
+    if (var_node->node_type != ASTN_VAR) {
+      return 2;
+    }
+    // Check global variables first
+    struct Variable* var = variable_table_get_var(&st.global_variables, var_node->u.var.name.ptr, var_node->u.var.name.len);
+    if (var == NULL) {
+      // TODO: Add local variable
+      return 3;
+    }
+    switch (var->type) {
+      case DT_UQUAD:
+      case DT_SQUAD:
+        break;
+      default:
+        // ERROR Could lead to memory overwrite (if byte variables are next to each other, currently not possible)
+        return 4;
+    }
+    fputs("call "CODEGEN_LOCKIN67_LABEL"\n", file);
+    fprintf(file, "mov %%eax, "CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL"+%d(%%rip)\n", var->offset);
+  }
+  return 0;
+}
+
 
 int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNodeStack* const node_stack, const struct SymbolTable st);
 
@@ -136,7 +226,7 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
   assert(right != NULL);
   codegen_gen_expression(file, left, node_stack, st);
   codegen_gen_expression(file, right, node_stack, st);
-  fputs("pop %r10\npop %r11\n", file);
+  fputs("xorq %r10, %r10\nxorq %r11, %r11\npop %r10\npop %r11\n", file);
   switch (binop->node_type) {
     case ASTN_ADD:
       fputs("addl %r10d, %r11d\n", file);
@@ -144,8 +234,9 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
     case ASTN_SUB:
       fputs("subl %r10d, %r11d\n", file);
       break;
+    // signed and unsigned multiplication behaves the same on a subset of the bits given there is no funny business on the upper bits
     case ASTN_MUL:
-      fputs("mull %r10d, %r11d\n", file);
+      fputs("imull %r10d, %r11d\n", file);
       break;
     case ASTN_EQUALITY:
       // mov does not affect the flags
@@ -280,8 +371,12 @@ int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeS
       return codegen_gen_throw(file, node, node_stack, st);
     case ASTN_YAP:
       return codegen_gen_yap(file, node, node_stack, st);
+    case ASTN_YAP67:
+      return codegen_gen_yap67(file, node, node_stack, st);
     case ASTN_LOCKIN:
       return codegen_gen_lockin(file, node, node_stack, st);
+    case ASTN_LOCKIN67:
+      return codegen_gen_lockin67(file, node, node_stack, st);
     case ASTN_ASSIGNMENT:
       return codegen_gen_assignment(file, node, node_stack, st);
     case ASTN_LOOP:
@@ -316,7 +411,7 @@ int codegen_gen_block(FILE* const file, ASTNode* const block, struct ASTNodeStac
 }
 
 void codegen_print_function(FILE* const file, ASTNode* const function) {
-  fputs("FUNCTION_", file);
+  fputs(CODEGEN_FUNCTION_PREFIX, file);
   for (size_t i = 0; i<function->u.function.name.len; ++i) {
     if (function->u.function.name.ptr[i] == '-') {
       fputc('_', file);
@@ -330,8 +425,7 @@ void codegen_print_function(FILE* const file, ASTNode* const function) {
 int codegen_gen_function(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_function\n");
   assert(function != NULL);
-  fputs( ".text\n.global ", file);
-  codegen_print_function(file, function);
+  fputs( ".text\n", file);
   fputc('\n', file);
   codegen_print_function(file, function);
   fputs(":\nmovq %rbp, -8(%rsp)\nmovq %rsp, -16(%rsp)\nmovq %rsp, %rbp\n", file);
@@ -394,7 +488,7 @@ int codegen_generate(FILE* const file, ASTNode* const top, struct ASTNodeStack* 
   int if_id_counter = 0;
   st.if_id_counter = &if_id_counter;
   fputs(CODE_HEADER, file);
-  fputs(".data\nGLOBAL_VARIABLES:\n", file);
+  fputs(".data\n"CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL":\n", file);
   int total_size = variable_table_get_total_size(&st.global_variables);
   fprintf(file, ".fill %d, 1, 0\n", total_size);
   int res = codegen_gen_top(file, top, node_stack, st);
