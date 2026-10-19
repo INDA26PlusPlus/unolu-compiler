@@ -36,8 +36,15 @@ int token_stack_pusha(struct TokenStack* const stack, const Token token) {
 
   if (stack->occupied == stack->size) {
     const size_t new_size = TOKEN_STACK_REALLOC_POLICY(stack->size);
-    void* const new_alloc = realloc(stack->tokens, new_size);
+    //void* const new_alloc = realloc(stack->tokens, new_size);
+    //if (new_alloc == NULL) { return 2; }
+    Token* const new_alloc = (Token*)malloc(new_size*sizeof(Token));
     if (new_alloc == NULL) { return 2; }
+
+    // TODO: Make Realloc
+    memcpy(new_alloc, stack->tokens, stack->size*sizeof(token));
+    free(stack->tokens);
+
     stack->tokens = new_alloc;
     stack->size = new_size;
   }

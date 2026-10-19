@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -263,12 +264,30 @@ int parse_variable_declaration(struct Parser* const parser, const bool is_local)
   return astnode_stack_top_idx(parser->stack);
 }
 
+int parse_function_call(struct Parser* const parser) {
+  printf("# parse_function_call\n");
+  assert(parser != NULL);
+  Token t = parser_next(parser);
+  if (t.tok_type != TOKT_FUNCTION) {
+    return -1;
+  }
+  ASTNode function_call = {.node_type = ASTN_FUNCTION_CALL, .u.function_call.name = { .ptr = t.data.string.ptr, .len = t.data.string.length } };
+  if (parser_next(parser).tok_type != TOKT_LPAREN) { return -1; }
+  // ARGS
+  if (parser_next(parser).tok_type != TOKT_RPAREN) { return -1; }
+  int res = astnode_stack_pusha(parser->stack, function_call);
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
+
 int parse_comparison(struct Parser* const parser);
 
 int parse_primary(struct Parser* const parser) {
   printf("# parse_primary\n");
   Token t = parser_peek(parser);
   switch (t.tok_type) {
+    case TOKT_FUNCTION:
+      return parse_function_call(parser);
     case TOKT_VAR:
       return parse_variable(parser);
     case TOKT_UINT:
@@ -470,6 +489,7 @@ int parse_break(struct Parser* const parser) {
   return astnode_stack_top_idx(parser->stack);
 }
 
+
 int parse_statement(struct Parser* const parser) {
   printf("# parse_statement\n");
   assert(parser != NULL);
@@ -506,6 +526,9 @@ int parse_statement(struct Parser* const parser) {
     case TOKT_BREAK:
       node_idx = parse_break(parser);
       break;
+    case TOKT_FUNCTION:
+      node_idx = parse_function_call(parser);
+      break;
     default:
       return -1;
   }
@@ -513,6 +536,7 @@ int parse_statement(struct Parser* const parser) {
   if (t.tok_type != TOKT_SEMICOLON) {
     node_idx = -1;
   }
+  printf("TOKTS %d\n", t.tok_type);
   assert(node_idx != -1);
   return node_idx;
 }
@@ -547,35 +571,37 @@ int parse_block(struct Parser* const parser) {
 }
 
 
-int parse_function(struct Parser* const parser) {
-  printf("# parse_function\n");
+int parse_function_declaration(struct Parser* const parser) {
+  printf("# parse_function_decl\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
   if (t.tok_type != TOKT_FUN) { return -1; }
+  printf("ISFUN\n");
   t = parser_next(parser);
   if (t.tok_type != TOKT_FUNCTION) { return -1; }
-  ASTNode function = {.node_type = ASTN_FUNCTION, .u.function = { .name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
+  printf("ISFUNCTION\n");
+  ASTNode function = {.node_type = ASTN_FUNCTION_DECL, .u.function_decl = { .name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
 
-  // TODO: Parse arguments
    
   if (parser_next(parser).tok_type != TOKT_LPAREN) { return -1; }
+  // TODO: Parse arguments
   if (parser_next(parser).tok_type != TOKT_RPAREN) { return -1; }
   t = parser_next(parser);
   switch (t.tok_type) {
     case TOKT_UBYTE:
-      function.u.function.return_type = DT_UBYTE;
+      function.u.function_decl.return_type = DT_UBYTE;
       break;
     case TOKT_SBYTE:
-      function.u.function.return_type = DT_SBYTE;
+      function.u.function_decl.return_type = DT_SBYTE;
       break;
     case TOKT_UQUAD:
-      function.u.function.return_type = DT_UQUAD;
+      function.u.function_decl.return_type = DT_UQUAD;
       break;
     case TOKT_SQUAD:
-      function.u.function.return_type = DT_SQUAD;
+      function.u.function_decl.return_type = DT_SQUAD;
       break;
     case TOKT_LBRACE:
-      function.u.function.return_type = DT_VOID;
+      function.u.function_decl.return_type = DT_VOID;
       goto skip_lbrace;
     default:
       return -1;
@@ -587,16 +613,17 @@ int parse_function(struct Parser* const parser) {
   parser->local_variable_table = &local_variables;
   const int block_idx = parse_block(parser); 
   // The block can only be empty if it is a void function
-  if (block_idx == -1 && function.u.function.return_type != DT_VOID) {
+  if (block_idx == -1 && function.u.function_decl.return_type != DT_VOID) {
     return -1;
   }
   t = parser_next(parser);
   if (t.tok_type != TOKT_RBRACE) { return -1; }
-  function.u.function.first_statement_idx = block_idx;
-  function.u.function.local_variables = local_variables;
+  function.u.function_decl.first_statement_idx = block_idx;
+  function.u.function_decl.local_variables = local_variables;
   parser->local_variable_table = NULL;
   int res = astnode_stack_pusha(parser->stack, function);
   if (res) { return -1; } 
+            printf("FUNCTION ");
   return astnode_stack_top_idx(parser->stack);
 }
 
@@ -614,7 +641,7 @@ int parse_top_level_declaration(struct Parser* const parser) {
       node_idx = parse_variable_declaration(parser, false);
       break;
     case TOKT_FUN:
-      node_idx = parse_function(parser);
+      node_idx = parse_function_declaration(parser);
       break;
     // TODO: Add inclusionn
     default:

@@ -7,7 +7,8 @@ typedef enum {
   ASTN_NONE = 0,
   ASTN_UINT,
   ASTN_INT,
-  ASTN_FUNCTION,
+  ASTN_FUNCTION_DECL,
+  ASTN_FUNCTION_CALL,
   ASTN_THROW,
   ASTN_YAP,
   ASTN_YAP67,
@@ -48,7 +49,14 @@ struct ASTNode {
       struct VariableTable local_variables;
       int first_statement_idx;
       // TODO: Arguments, you could implement similarly to a variable table but in the begining of a function you turn the args into local variables 
-    } function;
+    } function_decl;
+    struct {
+      struct {
+        const char* ptr; 
+        size_t len;
+      } name;
+      // TODO: Arguments 
+    } function_call;
     struct {
       int statements_if_idx;
       int statements_else_idx;

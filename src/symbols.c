@@ -35,7 +35,7 @@ int variable_stack_pusha(struct VariableStack* const stack, const struct Variabl
 
   if (stack->occupied == stack->size) {
     const size_t new_size = 2*(stack->size);
-    void* const new_alloc = realloc(stack->nodes, new_size);
+    struct Variable* const new_alloc = (struct Variable*)realloc(stack->nodes, new_size*sizeof(struct Variable));
     if (new_alloc == NULL) { return 2; }
     stack->nodes = new_alloc;
     stack->size = new_size;
@@ -100,6 +100,9 @@ int variable_table_get_max_offset(const struct VariableTable* const table) {
 
 int variable_table_get_total_size(const struct VariableTable* const table) {
   struct Variable* var = variable_stack_top((struct VariableStack*)&table->stack);
+  if (var == NULL) {
+    return 0;
+  }
   switch (var->type) {
     case DT_SBYTE:
     case DT_UBYTE:

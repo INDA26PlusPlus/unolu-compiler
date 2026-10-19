@@ -24,6 +24,29 @@ int codegen_gen_variable(FILE* const file, const char* const name_ptr, const siz
   return 0;
 }
 
+// Assumes either function decl or function call
+void codegen_gen_function_identifier(FILE* const file, ASTNode* const function) {
+  assert(function->node_type == ASTN_FUNCTION_CALL || function->node_type == ASTN_FUNCTION_DECL);
+  fputs(CODEGEN_FUNCTION_PREFIX, file);
+  if (function->node_type == ASTN_FUNCTION_CALL) {
+    for (size_t i = 0; i<function->u.function_call.name.len; ++i) {
+      if (function->u.function_call.name.ptr[i] == '-') {
+        fputc('_', file);
+      } else {
+        fputc(function->u.function_call.name.ptr[i], file);
+      }
+    }
+  } else {
+    for (size_t i = 0; i<function->u.function_decl.name.len; ++i) {
+      if (function->u.function_decl.name.ptr[i] == '-') {
+        fputc('_', file);
+      } else {
+        fputc(function->u.function_decl.name.ptr[i], file);
+      }
+    }
+  }
+}
+
 int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_throw\n");
   assert(throw != NULL);
@@ -213,6 +236,17 @@ int codegen_gen_lockin67(FILE* const file, ASTNode* const lockin, struct ASTNode
   return 0;
 }
 
+int codegen_gen_function_call(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
+  (void)(node_stack);
+  (void)(st);
+  printf("# codegen_gen_function_call\n");
+  assert(function->node_type == ASTN_FUNCTION_CALL);
+  fputs("call ", file);
+  codegen_gen_function_identifier(file, function);
+  fputc('\n', file);
+  return 0;
+}
+
 
 int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNodeStack* const node_stack, const struct SymbolTable st);
 
@@ -253,6 +287,10 @@ int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNode
   printf("# codegen_gen_expression\n");
   assert(expr != NULL);
   switch (expr->node_type) {
+    case ASTN_FUNCTION_CALL:
+      codegen_gen_function_call(file, expr, node_stack, st);
+      fputs("push %rax\n", file);
+      return 0;
     case ASTN_INT:
       fprintf(file, "push $%d\n", expr->u.integer);
       return 0;
@@ -363,10 +401,13 @@ int codegen_gen_break(FILE* const file, ASTNode* const node, struct ASTNodeStack
   return 0;
 }
 
+
 int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_statement\n");
   assert(node != NULL);
   switch (node->node_type) {
+    case ASTN_FUNCTION_CALL:
+      return codegen_gen_function_call(file, node, node_stack, st);
     case ASTN_THROW:
       return codegen_gen_throw(file, node, node_stack, st);
     case ASTN_YAP:
@@ -410,33 +451,23 @@ int codegen_gen_block(FILE* const file, ASTNode* const block, struct ASTNodeStac
   return 0;
 }
 
-void codegen_print_function(FILE* const file, ASTNode* const function) {
-  fputs(CODEGEN_FUNCTION_PREFIX, file);
-  for (size_t i = 0; i<function->u.function.name.len; ++i) {
-    if (function->u.function.name.ptr[i] == '-') {
-      fputc('_', file);
-    } else {
-      fputc(function->u.function.name.ptr[i], file);
-    }
-  }
-}
 
 
-int codegen_gen_function(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
+int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_function\n");
   assert(function != NULL);
   fputs( ".text\n", file);
   fputc('\n', file);
-  codegen_print_function(file, function);
+  codegen_gen_function_identifier(file, function);
   fputs(":\nmovq %rbp, -8(%rsp)\nmovq %rsp, -16(%rsp)\nmovq %rsp, %rbp\n", file);
-  fprintf(file, "subq $%d, %%rsp\n", 24+variable_table_get_max_offset(&function->u.function.local_variables));
+  fprintf(file, "subq $%d, %%rsp\n", 24+variable_table_get_max_offset(&function->u.function_decl.local_variables));
 
-  ASTNode* const first_statement = astnode_stack_get_node(node_stack, function->u.function.first_statement_idx);
+  ASTNode* const first_statement = astnode_stack_get_node(node_stack, function->u.function_decl.first_statement_idx);
   assert(first_statement != NULL);
   int res = codegen_gen_block(file, first_statement, node_stack, st);
 
   if (res != 0) { return res; }
-  if (function->u.function.return_type == DT_VOID) {
+  if (function->u.function_decl.return_type == DT_VOID) {
     codegen_gen_return(file);
   }
   return 0;
@@ -449,9 +480,9 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
   }
   printf("TOP DECL\n");
   switch (top_decl->node_type) {
-      case ASTN_FUNCTION:
+      case ASTN_FUNCTION_DECL:
         ;
-        int res = codegen_gen_function(file, top_decl, node_stack, st);
+        int res = codegen_gen_function_decl(file, top_decl, node_stack, st);
         return res;
       case ASTN_VAR_DECL:
         printf("# var decl (nothing happends)\n");
