@@ -212,9 +212,10 @@ int codegen_gen_function_call(FILE* const file, ASTNode* const function, struct 
   (void)(st);
   printf("# codegen_gen_function_call\n");
   assert(function->node_type == ASTN_FUNCTION_CALL);
-  fputs("call ", file);
+  // Ensure 16 byte alignment
+  fputs("movq %rsp, -24(%rbp)\nandq $-16, %rsp\ncall ", file);
   codegen_gen_function_identifier(file, function);
-  fputc('\n', file);
+  fputs("\nmovq -24(%rbp), %rsp\n", file);
   return 0;
 }
 
