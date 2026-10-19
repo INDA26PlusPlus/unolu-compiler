@@ -33,6 +33,7 @@ struct VariableTable {
 
 struct SymbolTable {
   struct VariableTable global_variables;
+  struct VariableTable* local_variables;
   int* if_id_counter;
 };
 

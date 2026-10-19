@@ -254,7 +254,7 @@ int parse_variable_declaration(struct Parser* const parser, const bool is_local)
     return -1;
   }
 
-  if (parser_next(parser).tok_type != TOKT_SEMICOLON) {
+  if (!is_local && parser_next(parser).tok_type != TOKT_SEMICOLON) {
     return -1;
   }
   variable_table_insert(is_local ? parser->local_variable_table : &parser->global_variable_table, t.data.string.ptr, t.data.string.length, dt);
@@ -512,7 +512,7 @@ int parse_statement(struct Parser* const parser) {
     case TOKT_UQUAD:
     case TOKT_SQUAD:
       // TODO: Add local variable declarations
-      return -1;
+      node_idx = parse_variable_declaration(parser, true);
       break;
     case TOKT_ASSIGN:
       node_idx = parse_assignment(parser);
@@ -536,7 +536,6 @@ int parse_statement(struct Parser* const parser) {
   if (t.tok_type != TOKT_SEMICOLON) {
     node_idx = -1;
   }
-  printf("TOKTS %d\n", t.tok_type);
   assert(node_idx != -1);
   return node_idx;
 }
