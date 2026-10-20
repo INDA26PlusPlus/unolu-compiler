@@ -127,10 +127,8 @@ int parse_integer(struct Parser* const parser) {
   Token t = parser_next(parser);
   ASTNode node;
   if (t.tok_type == TOKT_UINT) {
-      printf("UINT %d\n", t.data.uinteger);
     node = (ASTNode){.node_type = ASTN_UINT, .u.uinteger = t.data.uinteger};
   } else if (t.tok_type == TOKT_INT) {
-      printf("INT %d\n", t.data.integer);
     node = (ASTNode){.node_type = ASTN_INT, .u.integer = t.data.integer};
   } else {
     return -1;
@@ -294,10 +292,12 @@ int parse_primary(struct Parser* const parser) {
     case TOKT_INT:
       return parse_integer(parser);
     case TOKT_LPAREN:
+      parser_next(parser);
       ;
       const int node = parse_comparison(parser);
       if (node == -1) { return -1; }
       if (parser_peek(parser).tok_type != TOKT_RPAREN) { return -1; }
+      parser_next(parser);
       return node;
     default:
       return -1;
@@ -306,19 +306,24 @@ int parse_primary(struct Parser* const parser) {
 
 int parse_unary(struct Parser* const parser) {
   printf("# parse_unary\n");
-  if (parser_peek(parser).tok_type == TOKT_NOT) {
-    parser_next(parser);
-
-    int const operand_idx = parse_unary(parser);
-    if (operand_idx == -1) { return -1; }
-
-    int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_NOT, .u.uniop = { .operand_idx = operand_idx }});
-    if (res) { return -1; } 
-    return astnode_stack_top_idx(parser->stack);
-  } else {
-    return parse_primary(parser);
+  int res;
+  ast_node_e node_type;
+  switch (parser_peek(parser).tok_type) {
+    case TOKT_LOGNOT:
+      node_type = ASTN_LOGNOT;
+      break;
+    case TOKT_BITNOT:
+      node_type = ASTN_BITNOT;
+      break;
+    default:
+      return parse_primary(parser);
   }
-
+  parser_next(parser);
+  int const operand_idx = parse_unary(parser);
+  if (operand_idx == -1) { return -1; }
+  res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = node_type, .u.uniop = { .operand_idx = operand_idx }});
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
 }
 
 
@@ -332,8 +337,11 @@ int parse_factor(struct Parser* const parser) {
     case TOKT_MUL:
       node_type = ASTN_MUL;
       break;
-    case TOKT_DIV:
-      node_type = ASTN_DIV;
+    case TOKT_IDIV:
+      node_type = ASTN_IDIV;
+      break;
+    case TOKT_UDIV:
+      node_type = ASTN_UDIV;
       break;
     default:
       return left_term_idx;
@@ -346,9 +354,36 @@ int parse_factor(struct Parser* const parser) {
   return astnode_stack_top_idx(parser->stack);
 }
 
+int parse_bitwise(struct Parser* const parser) {
+  printf("# parse_bitwise\n");
+  const int left_term_idx = parse_factor(parser);
+  if (left_term_idx == -1 ) { return -1; }
+
+  ast_node_e node_type;
+  switch (parser_peek(parser).tok_type) {
+    case TOKT_BITAND:
+      node_type = ASTN_BITAND;
+      break;
+    case TOKT_BITOR:
+      node_type = ASTN_BITOR;
+      break;
+    case TOKT_BITXOR:
+      node_type = ASTN_BITXOR;
+      break;
+    default:
+      return left_term_idx;
+  }
+  parser_next(parser);
+  const int right_term_idx = parse_bitwise(parser);
+  if (right_term_idx == -1) { return -1; }
+  int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = node_type, .u.binop = { .left_idx = left_term_idx, .right_idx = right_term_idx }});
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
+
 int parse_term(struct Parser* const parser) {
   printf("# parse_term\n");
-  const int left_term_idx = parse_factor(parser);
+  const int left_term_idx = parse_bitwise(parser);
   if (left_term_idx == -1 ) { return -1; }
 
   ast_node_e node_type;
@@ -358,6 +393,9 @@ int parse_term(struct Parser* const parser) {
       break;
     case TOKT_MINUS:
       node_type = ASTN_SUB;
+      break;
+    case TOKT_MOD:
+      node_type = ASTN_MOD;
       break;
     default:
       return left_term_idx;
@@ -397,9 +435,34 @@ int parse_comparison(struct Parser* const parser) {
   return astnode_stack_top_idx(parser->stack);
 }
 
+int parse_logical(struct Parser* const parser) {
+  printf("# parse_logical\n");
+  const int left_term_idx = parse_comparison(parser);
+  if (left_term_idx == -1) { return -1; }
+  ast_node_e node_type;
+  Token t = parser_peek(parser);
+  switch (t.tok_type) {
+    case TOKT_LOGOR:
+      node_type = ASTN_LOGOR;
+      break;
+    case TOKT_LOGAND:
+      node_type = ASTN_LOGAND;
+      break;
+    default:
+      return left_term_idx;
+  }
+  parser_next(parser);
+  const int right_term_idx = parse_logical(parser);
+  if (right_term_idx == -1) { return -1; }
+  int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = node_type, .u.binop = { .left_idx = left_term_idx, .right_idx = right_term_idx }});
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
+
+
 int parse_expression(struct Parser* const parser) {
   printf("# parse_expression\n");
-  return parse_comparison(parser);
+  return parse_logical(parser);
 }
 
 int parse_assignment(struct Parser* const parser) {
@@ -575,10 +638,8 @@ int parse_function_declaration(struct Parser* const parser) {
   assert(parser != NULL);
   Token t = parser_next(parser);
   if (t.tok_type != TOKT_FUN) { return -1; }
-  printf("ISFUN\n");
   t = parser_next(parser);
   if (t.tok_type != TOKT_FUNCTION) { return -1; }
-  printf("ISFUNCTION\n");
   ASTNode function = {.node_type = ASTN_FUNCTION_DECL, .u.function_decl = { .name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
 
    

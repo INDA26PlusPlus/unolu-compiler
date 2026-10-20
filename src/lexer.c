@@ -168,7 +168,10 @@ Token lexer_tokenize(struct Lexer* const lexer) {
   switch (c) {
       case '!':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_NOT};
+        return (Token){.tok_type=TOKT_LOGNOT};
+      case '~':
+        ++lexer->current_pos;
+        return (Token){.tok_type=TOKT_BITNOT};
       case '+':
         ++lexer->current_pos;
         return (Token){.tok_type=TOKT_PLUS};
@@ -179,8 +182,23 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         ++lexer->current_pos;
         return (Token){.tok_type=TOKT_MUL};
       case '/':
+        ;
+        enum tok_type_e tokt = TOKT_IDIV;
+        if (lexer_peek(lexer, 1) == '/') {
+          ++lexer->current_pos;
+          tokt = TOKT_UDIV;
+        }
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_DIV};
+        return (Token){.tok_type=tokt};
+      case '&':
+        ++lexer->current_pos;
+        return (Token){.tok_type=TOKT_BITAND};
+      case '|':
+        ++lexer->current_pos;
+        return (Token){.tok_type=TOKT_BITOR};
+      case '^':
+        ++lexer->current_pos;
+        return (Token){.tok_type=TOKT_BITXOR};
       case '(':
         ++lexer->current_pos;
         return (Token){.tok_type=TOKT_LPAREN};
@@ -204,7 +222,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         start = lexer->current_pos;
         id_sz = lexer_find_global_identifier_size(lexer);
         if (id_sz == 0) {
-          printf("ILLEGAL TOKEN: Global Identifier is empty\n");
+          fprintf(stderr, "Lexer: Global Identifier is empty (illegal token)\n");
           return (Token){.tok_type=TOKT_ILLEGAL};
         }
         lexer->current_pos += id_sz;
@@ -222,7 +240,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           assert(int_sz != 0); // Should be impossible
           uint64_t val = atoll(lexer_get_ptr(lexer));
           if (first_digit != '0' && val == 0) {
-            printf("ILLEGAL TOKEN: First digit of a negative integer cannot be 0\n");
+            fprintf(stderr, "Lexer: First digit of a negative number cannot be 0 (illegal token)\n");
             return (Token){.tok_type=TOKT_ILLEGAL};
           }
           if (lexer_peek(lexer, int_sz) == 'u') {
@@ -233,12 +251,12 @@ Token lexer_tokenize(struct Lexer* const lexer) {
             return (Token){.tok_type=TOKT_INT, .data.integer = int_sz};
           } 
         } else {
-          printf("ILLEGAL TOKEN: Integer expected after \'-\'\n");
+          fprintf(stderr, "Lexer: Integer expected after \'-\' (illegal token)\n");
           return (Token){.tok_type=TOKT_ILLEGAL};
         }
       case '\'':
         if (lexer_peek(lexer, 2) != '\'') {
-          printf("ILLEGAL TOKEN: Closing single quote not found\n");
+          fprintf(stderr, "Lexer: Closing single quote not found (illegal token)\n");
           return (Token){.tok_type=TOKT_ILLEGAL};
         }
         unsigned int uint = lexer_peek(lexer, 1);
@@ -249,7 +267,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         start = lexer->current_pos;
         id_sz = lexer_find_identifier_size(lexer);
         if (id_sz == 0) {
-          printf("ILLEGAL TOKEN: Identifier is empty\n");
+          fprintf(stderr, "Lexer: Identifier is empty (illegal token)\n");
           return (Token){.tok_type=TOKT_ILLEGAL};
         }
         lexer->current_pos += id_sz;
@@ -263,23 +281,26 @@ Token lexer_tokenize(struct Lexer* const lexer) {
       lexer->current_pos += id_sz;
       switch (id_sz) {
         case 2:
+          // If, Or, To
           if (!strncmp(str, "If", 2)) {
             return (Token){.tok_type=TOKT_IF};            
           } else if (!strncmp(str, "Or", 2)) {
-            return (Token){.tok_type=TOKT_OR};            
+            return (Token){.tok_type=TOKT_LOGOR};            
           } else if (!strncmp(str, "To", 2)) {
             return (Token){.tok_type=TOKT_TO};            
           } else {
             goto ret_func;
           }
         case 3:
-          // And, Yap, 
+          // And, Yap, Mod 
           if (!strncmp(str, "And", 3)) {
-            return (Token){.tok_type=TOKT_AND};            
+            return (Token){.tok_type=TOKT_LOGAND};            
           } else if (!strncmp(str, "Yap", 3)) {
             return (Token){.tok_type=TOKT_YAP};            
           } else if (!strncmp(str, "Fun", 3)) {
             return (Token){.tok_type=TOKT_FUN};            
+          } else if (!strncmp(str, "Mod", 3)) {
+            return (Token){.tok_type=TOKT_MOD};            
           } else {
             goto ret_func;
           }
@@ -341,7 +362,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
       assert(int_sz != 0); // Should be impossible
       int64_t val = atoll(lexer_get_ptr(lexer));
       if (c != '0' && val == 0) {
-        printf("ILLEGAL TOKEN: First digit of a positive integer cannot be 0 (excluding 0)\n");
+        fprintf(stderr, "Lexer: First digit of a positive integer that is not 0 cannot be 0 (illegal token)\n");
         return (Token){.tok_type=TOKT_ILLEGAL};
       }
       if (lexer_peek(lexer, int_sz) == 'u') {
@@ -352,7 +373,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         return (Token){.tok_type=TOKT_INT, .data.integer = val};
       }
     }
-    printf("ILLEGAL TOKEN: Other\n");
+    fprintf(stderr, "Lexer: could not tokenize (illegal token)\n");
     return (Token){.tok_type=TOKT_ILLEGAL};
 }
 
@@ -366,7 +387,6 @@ int lexer_tokenize_all(struct Lexer* const lexer, struct TokenStack* const stack
     res = token_stack_pusha(stack, t);
     if (res) { return 2; }
   }
-  printf("# %zu %zu %d\n", lexer->current_pos, lexer->string_size, lexer->string[lexer->current_pos]);
   if (t.tok_type == TOKT_ILLEGAL) { return 3; }
   return 0;
 }

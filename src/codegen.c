@@ -27,8 +27,7 @@ enum datatype_e codegen_gen_variable(FILE* const file, const char* const name_pt
   struct Variable* var = variable_table_get_var(&st.global_variables, name_ptr, name_len);
   if (var != NULL) {
       codegen_gen_global_variable_from_offset(file, var->offset);
-  } else { // variable not found in globals
-    // TODO: Add local variables
+  } else { 
     assert(st.local_variables != NULL); // ERROR Variable not found in global scope, currently in global scope
     var = variable_table_get_var(st.local_variables, name_ptr, name_len);
     if (var == NULL) {
@@ -173,7 +172,6 @@ int codegen_gen_lockin(FILE* const file, ASTNode* const lockin, struct ASTNodeSt
     if (var_node->node_type != ASTN_VAR) {
       return 2;
     }
-    // Check global variables first
     fputs("call getchar\n", file);
     fputs("mov %eax, ", file);
     enum datatype_e type = codegen_gen_variable(file, var_node->u.var.name.ptr, var_node->u.var.name.len, st);
@@ -195,7 +193,6 @@ int codegen_gen_lockin67(FILE* const file, ASTNode* const lockin, struct ASTNode
     if (var_node->node_type != ASTN_VAR) {
       return 2;
     }
-    // Check global variables first
     fputs("call "CODEGEN_LOCKIN67_LABEL"\n", file);
     fputs("mov %eax, ", file);
     enum datatype_e type = codegen_gen_variable(file, var_node->u.var.name.ptr, var_node->u.var.name.len, st);
@@ -232,7 +229,7 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
   assert(right != NULL);
   codegen_gen_expression(file, left, node_stack, st);
   codegen_gen_expression(file, right, node_stack, st);
-  fputs("xorq %r10, %r10\nxorq %r11, %r11\npop %r10\npop %r11\n", file);
+  fputs("pop %r10\npop %r11\n", file);
   switch (binop->node_type) {
     case ASTN_ADD:
       fputs("addl %r10d, %r11d\n", file);
@@ -242,22 +239,74 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
       break;
     // signed and unsigned multiplication behaves the same on a subset of the bits given there is no funny business on the upper bits
     case ASTN_MUL:
-      fputs("imull %r10d, %r11d\n", file);
+      fputs("imull %r10, %r11\n", file);
+      break;
+    case ASTN_IDIV:
+      // Does not preserve eax and edx
+      fputs("movl %r10d, %eax\ncdq\n\nidivl %r11d\nmovl %eax, %r11d\n", file);
+      break;
+    case ASTN_UDIV:
+      // Does not preserve eax and edx
+      fputs("movl %r10d, %eax\nxorl %edx, %edx\ndivl %r11d\nmovl %eax, %r11d\n", file);
+      break;
+    case ASTN_MOD:
+      // Does not preserve eax and edx
+      fputs("movl %r10d, %eax\nxorl %edx, %edx\ndivl %r11d\nmovl %edx, %r11d\n", file);
+      break;
+    case ASTN_LOGOR:
+      fputs("orl %r11d, %r10d\nmovl $0, %r11d\nsetne %r11b\n", file);
+      break;
+    case ASTN_LOGAND:
+      fputs("testl %r10d, %r10d\nmovl $0, %r10d\nsetne %r10b\ntestl %r11d, %r11d\nmovl $0, %r11d\nsetne %r11b\nandb %r11b, %r10b\n", file);
+      break;
+    case ASTN_BITAND:
+      fputs("andl %r10d, %r11d\n", file);
+      break;
+    case ASTN_BITOR:
+      fputs("orl %r10d, %r11d\n", file);
+      break;
+    case ASTN_BITXOR:
+      fputs("xorl %r10d, %r11d\n", file);
       break;
     case ASTN_EQUALITY:
       // mov does not affect the flags
       fputs("cmp %r10d, %r11d\nmovl $0, %r11d\nsete %r11b\n", file);
       break;
     default:
+      fprintf(stderr, "Codegen: Unexpected node type (%d) for binop\n", binop->node_type);
       return 2002;
   }
   fputs("push %r11\n", file);
   return 0;
 }
 
+int codegen_gen_uniop(FILE* const file, ASTNode* const uniop, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
+  printf("# codegen_gen_uniop\n");
+  assert(uniop->u.uniop.operand_idx != -1);
+  ASTNode* const operand = astnode_stack_get_node(node_stack, uniop->u.uniop.operand_idx);
+  assert(operand != NULL);
+  codegen_gen_expression(file, operand, node_stack, st);
+  fputs("pop %r11\n", file);
+  switch (uniop->node_type) {
+    case ASTN_LOGNOT:
+      fputs("notl %r11d\nmovl $0, %r11d\nsetne %r11b\n", file);
+      break;
+    case ASTN_BITNOT:
+      fputs("notl %r11d\n", file);
+      break;
+    default:
+      fprintf(stderr, "Codegen: Unexpected node type (%d) for uninop\n", uniop->node_type);
+      return 2003;
+  }
+  fputs("push %r11\n", file);
+  return 0;
+}
+
+
 int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   printf("# codegen_gen_expression\n");
   assert(expr != NULL);
+  int res;
   switch (expr->node_type) {
     case ASTN_FUNCTION_CALL:
       codegen_gen_function_call(file, expr, node_stack, st);
@@ -279,11 +328,23 @@ int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNode
     case ASTN_ADD:
     case ASTN_SUB:
     case ASTN_MUL:
+    case ASTN_IDIV:
+    case ASTN_UDIV:
+    case ASTN_MOD:
+    case ASTN_LOGAND:
+    case ASTN_LOGOR:
+    case ASTN_BITAND:
+    case ASTN_BITOR:
+    case ASTN_BITXOR:
     case ASTN_EQUALITY:
-      ;
-      int res = codegen_gen_binop(file, expr, node_stack, st);
+      res = codegen_gen_binop(file, expr, node_stack, st);
+      return res;
+    case ASTN_LOGNOT:
+    case ASTN_BITNOT:
+      res = codegen_gen_uniop(file, expr, node_stack, st);
       return res;
     default:
+      fprintf(stderr, "Codegen: Unexpected node type (%d) for expression\n", expr->node_type);
       return 2002;
   }
   return 0;
@@ -389,7 +450,7 @@ int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeS
     case ASTN_ASSIGNMENT:
       return codegen_gen_assignment(file, node, node_stack, st);
     case ASTN_VAR_DECL:
-      printf("# local var decl (nothing happends)\n");
+      printf("# local var decl (nothing)\n");
       return 0;
     case ASTN_LOOP:
       return codegen_gen_loop(file, node, node_stack, st);
@@ -398,7 +459,7 @@ int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeS
     case ASTN_IF_ELSE:
       return codegen_gen_if_else(file, node, node_stack, st);
     default:
-      printf("# UNEXPECTED STATEMENT %d\n", node->node_type);
+      fprintf(stderr, "Codegen: Unexpected node type (%d) for statement\n", node->node_type);
       return 1;
   }
 }
@@ -466,7 +527,6 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
   if (top_decl == NULL) {
     return 0;
   }
-  printf("TOP DECL\n");
   int res;
   switch (top_decl->node_type) {
       case ASTN_FUNCTION_DECL:
@@ -474,13 +534,13 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
         res = codegen_gen_function_decl(file, top_decl, node_stack, st);
         return res;
       case ASTN_VAR_DECL:
-        printf("# global var decl (nothing happends)\n");
+        printf("# global var decl (nothing)\n");
         return 0;
       case ASTN_GLOBL_DECL:
         res = codegen_gen_globalization_decl(file, top_decl, node_stack, st);
         return res;
       default:
-        printf("# other %d\n", top_decl->node_type);
+        fprintf(stderr, "Codegen: Unexpected node type (%d) for top level declaration\n", top_decl->node_type);
         return 1;
     }
 }
