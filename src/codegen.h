@@ -86,7 +86,7 @@ ret\n\n"
 #define CODE_HEADER_RUNTIME "\
 .data\n\
 EINAPL_RUNTIME_ERROR_MESSAGE:\n\
-.ascii \"ERROR\\n\"\n\
+.ascii \"ERROR (%d)\\n\\0\"\n\
 \n\
 .text\n\
 .global main\n\
@@ -94,11 +94,12 @@ main:\n\
 call EINAPL_FUNCTION_entry_point\n\
 test %eax, %eax\n\
 jz EINAPL_RUNTIME_SUCCESS_LABEL\n\
-movq $1, %rax\n\
-movq $1, %rdi\n\
-movq $EINAPL_RUNTIME_ERROR_MESSAGE, %rsi\n\
-movq $6, %rdx\n\
-syscall\n\
+movl %eax, %esi\n\
+movq $EINAPL_RUNTIME_ERROR_MESSAGE, %rdi\n\
+xorq %rax, %rax\n\
+push %rbp\n\
+call printf\n\
+pop %rbp\n\
 EINAPL_RUNTIME_SUCCESS_LABEL:\n\
 ret\n\n"
 

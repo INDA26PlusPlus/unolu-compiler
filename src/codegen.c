@@ -429,10 +429,9 @@ int codegen_gen_block(FILE* const file, ASTNode* const block, struct ASTNodeStac
 
 
 int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
-  printf("# codegen_gen_function\n");
+  printf("# codegen_gen_function_decl\n");
   assert(function != NULL);
   fputs( ".text\n", file);
-  fputc('\n', file);
   codegen_gen_function_identifier(file, function);
   fputs(":\nmovq %rbp, -8(%rsp)\nmovq %rsp, -16(%rsp)\nmovq %rsp, %rbp\n", file);
   fprintf(file, "subq $%d, %%rsp\n", CODEGEN_FUNCTION_RESERVED_STACK_SPACE+variable_table_get_total_size(&function->u.function_decl.local_variables));
@@ -447,6 +446,22 @@ int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct 
   if (function->u.function_decl.return_type == DT_VOID) {
     codegen_gen_return(file);
   }
+  fputc('\n', file);
+  return 0;
+}
+
+int codegen_gen_globalization_decl(FILE* const file, ASTNode* const globalization_decl, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
+  (void)node_stack;
+  (void)st;
+  assert(globalization_decl != NULL);
+  if (globalization_decl->node_type != ASTN_GLOBL_DECL) { return 1; }
+  assert (globalization_decl->u.globl_decl.function_name.ptr != NULL);
+  assert (globalization_decl->u.globl_decl.function_name.len != 0);
+  assert (globalization_decl->u.globl_decl.global_name.ptr != NULL);
+  assert (globalization_decl->u.globl_decl.global_name.len != 0);
+  fprintf(file, ".text\n.global %.*s\n", (int)globalization_decl->u.globl_decl.global_name.len, globalization_decl->u.globl_decl.global_name.ptr);
+  fprintf(file, "%.*s:\n", (int)globalization_decl->u.globl_decl.global_name.len, globalization_decl->u.globl_decl.global_name.ptr);
+  fprintf(file, "jmp "CODEGEN_FUNCTION_PREFIX"%.*s\n\n", (int)globalization_decl->u.globl_decl.function_name.len, globalization_decl->u.globl_decl.function_name.ptr);
   return 0;
 }
 
@@ -456,14 +471,18 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
     return 0;
   }
   printf("TOP DECL\n");
+  int res;
   switch (top_decl->node_type) {
       case ASTN_FUNCTION_DECL:
         ;
-        int res = codegen_gen_function_decl(file, top_decl, node_stack, st);
+        res = codegen_gen_function_decl(file, top_decl, node_stack, st);
         return res;
       case ASTN_VAR_DECL:
         printf("# global var decl (nothing happends)\n");
         return 0;
+      case ASTN_GLOBL_DECL:
+        res = codegen_gen_globalization_decl(file, top_decl, node_stack, st);
+        return res;
       default:
         printf("# other %d\n", top_decl->node_type);
         return 1;
@@ -498,7 +517,7 @@ int codegen_generate(FILE* const file, ASTNode* const top, struct ASTNodeStack* 
   fputs(CODE_HEADER, file);
   fputs(".data\n"CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL":\n", file);
   int total_size = variable_table_get_total_size(&st.global_variables);
-  fprintf(file, ".fill %d, 1, 0\n", total_size);
+  fprintf(file, ".fill %d, 1, 0\n\n", total_size);
   int res = codegen_gen_top(file, top, node_stack, st);
   if (res != 0) { return res; }
   return 0;

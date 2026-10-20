@@ -622,10 +622,27 @@ int parse_function_declaration(struct Parser* const parser) {
   parser->local_variable_table = NULL;
   int res = astnode_stack_pusha(parser->stack, function);
   if (res) { return -1; } 
-            printf("FUNCTION ");
   return astnode_stack_top_idx(parser->stack);
 }
 
+
+int parse_globalization_declaration(struct Parser* const parser) {
+  printf("# parse_globalization_declaration\n");
+  assert(parser != NULL);
+  Token t = parser_next(parser);
+  if (t.tok_type != TOKT_GLOBALIZE) { return -1; }
+  t = parser_next(parser);
+  if (t.tok_type != TOKT_FUNCTION) { return -1; }
+  ASTNode globalization_decl = {.node_type = ASTN_GLOBL_DECL, .u.globl_decl = { .function_name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
+  t = parser_next(parser);
+  if (t.tok_type != TOKT_GLOBAL_IDENTIFIER) { return -1; }
+  globalization_decl.u.globl_decl.global_name.ptr = t.data.string.ptr;
+  globalization_decl.u.globl_decl.global_name.len = t.data.string.length;
+  if (parser_next(parser).tok_type != TOKT_SEMICOLON) { return -1; }
+  int res = astnode_stack_pusha(parser->stack, globalization_decl);
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
 
 int parse_top_level_declaration(struct Parser* const parser) {
   printf("# parse_top_level_declaration\n");
@@ -633,6 +650,9 @@ int parse_top_level_declaration(struct Parser* const parser) {
   int node_idx = -1;
   Token t = parser_peek(parser);
   switch (t.tok_type) {
+    case TOKT_GLOBALIZE:
+      node_idx = parse_globalization_declaration(parser);
+      break;
     case TOKT_UBYTE:
     case TOKT_SBYTE:
     case TOKT_UQUAD:

@@ -9,6 +9,7 @@ typedef enum {
   ASTN_INT,
   ASTN_FUNCTION_DECL,
   ASTN_FUNCTION_CALL,
+  ASTN_GLOBL_DECL,
   ASTN_THROW,
   ASTN_YAP,
   ASTN_YAP67,
@@ -77,6 +78,17 @@ struct ASTNode {
         size_t len;
       } name;
     } var_decl;
+    struct {
+      enum datatype_e type;
+      struct {
+        const char* ptr; 
+        size_t len;
+      } function_name;
+      struct {
+        const char* ptr; 
+        size_t len;
+      } global_name;
+    } globl_decl;
     struct {
       int expr_idx;
       int var_idx;

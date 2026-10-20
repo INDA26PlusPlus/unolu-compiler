@@ -140,10 +140,18 @@ size_t lexer_find_identifier_size(struct Lexer* const lexer) {
   return n-1;
 }
 
+size_t lexer_find_global_identifier_size(struct Lexer* const lexer) {
+  char c = lexer_current_character(lexer);
+  size_t n = 0;
+  while (isalpha(c)) {
+    c = lexer_peek(lexer, ++n);
+  }
+  return n;
+}
+
 // Allows the integer to start with 0
 size_t lexer_find_integer_size(struct Lexer* const lexer) {
   char c = lexer_current_character(lexer);
-  printf("CURR %c\n", c);
   size_t n = 0;
   while (isdigit(c)) {
     c = lexer_peek(lexer, ++n);
@@ -156,6 +164,7 @@ Token lexer_tokenize(struct Lexer* const lexer) {
     lexer_next(lexer);
   }
   const char c = lexer_current_character(lexer);
+  size_t start, id_sz;
   switch (c) {
       case '!':
         ++lexer->current_pos;
@@ -190,6 +199,16 @@ Token lexer_tokenize(struct Lexer* const lexer) {
       case '=':
         ++lexer->current_pos;
         return (Token){.tok_type=TOKT_EQ};
+      case '.':
+        lexer_next(lexer);
+        start = lexer->current_pos;
+        id_sz = lexer_find_global_identifier_size(lexer);
+        if (id_sz == 0) {
+          printf("ILLEGAL TOKEN: Global Identifier is empty\n");
+          return (Token){.tok_type=TOKT_ILLEGAL};
+        }
+        lexer->current_pos += id_sz;
+        return (Token){.tok_type=TOKT_GLOBAL_IDENTIFIER, .data.string = { .ptr = &lexer->string[start], .length = id_sz }};
       case '<':
         ++lexer->current_pos;
         return (Token){.tok_type=TOKT_LESS};
@@ -227,8 +246,8 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         return (Token){.tok_type=TOKT_UINT, .data.uinteger = uint, };
       case '$':
         lexer_next(lexer);
-        size_t start = lexer->current_pos;
-        size_t id_sz = lexer_find_identifier_size(lexer);
+        start = lexer->current_pos;
+        id_sz = lexer_find_identifier_size(lexer);
         if (id_sz == 0) {
           printf("ILLEGAL TOKEN: Identifier is empty\n");
           return (Token){.tok_type=TOKT_ILLEGAL};
@@ -307,8 +326,15 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           } else {
             goto ret_func;
           }
+        case 9:
+          // Globalize
+          if (!strncmp(str, "Globalize", 9)) {
+            return (Token){.tok_type=TOKT_GLOBALIZE};            
+          } else {
+            goto ret_func;
+          }
         default:
-             ret_func: return (Token){.tok_type=TOKT_FUNCTION, .data.string = {.ptr = str, id_sz} };           
+           ret_func: return (Token){.tok_type=TOKT_FUNCTION, .data.string = {.ptr = str, id_sz} };           
       }
     } else if (isdigit(c)) {
       size_t int_sz = lexer_find_integer_size(lexer); 
