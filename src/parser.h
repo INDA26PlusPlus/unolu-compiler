@@ -61,7 +61,7 @@ struct ASTNode {
     struct {
       int statements_if_idx;
       int statements_else_idx;
-      int var_idx;
+      int expr_idx;
       bool has_else;
     } if_else;
     struct {

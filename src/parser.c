@@ -427,14 +427,14 @@ int parse_if_else(struct Parser* const parser) {
   Token t = parser_next(parser);
   if (t.tok_type != TOKT_IF) { return -1; }
   t = parser_peek(parser);
-  if (t.tok_type != TOKT_VAR) { return -1; }
-  const int var_idx = parse_variable(parser);
+  const int expr_idx = parse_expression(parser);
+  if (expr_idx == -1) { return -1; }
   t = parser_next(parser);
   if (t.tok_type != TOKT_LBRACE) { return -1; }
   const int statements_if_idx = parse_block(parser);
   t = parser_next(parser);
   if (t.tok_type != TOKT_RBRACE) { return -1; }
-  int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_IF_ELSE , .u.if_else = { .statements_if_idx = statements_if_idx, .var_idx = var_idx, .has_else = false}});
+  int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_IF_ELSE , .u.if_else = { .statements_if_idx = statements_if_idx, .expr_idx = expr_idx, .has_else = false}});
   if (res) { return -1; } 
 
   t = parser_peek(parser);
@@ -662,7 +662,6 @@ int parse_top_level_declaration(struct Parser* const parser) {
     case TOKT_FUN:
       node_idx = parse_function_declaration(parser);
       break;
-    // TODO: Add inclusionn
     default:
       return -1;
   }

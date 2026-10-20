@@ -318,15 +318,11 @@ int codegen_gen_if_else(FILE* const file, ASTNode* const node, struct ASTNodeSta
   printf("# codegen_gen_if_else\n");
   assert(node->node_type == ASTN_IF_ELSE);
   assert(node->u.if_else.statements_if_idx != -1);
-  assert(node->u.if_else.var_idx != -1);
-  ASTNode* const var = astnode_stack_get_node(node_stack, node->u.if_else.var_idx);
-  assert(var != NULL);
-  assert(var->u.var.name.ptr != NULL);
-
-  fputs("movl ", file);
-  int res = codegen_gen_variable(file, var->u.var.name.ptr, var->u.var.name.len, st);
+  assert(node->u.if_else.expr_idx != -1);
+  ASTNode* const expr = astnode_stack_get_node(node_stack, node->u.if_else.expr_idx);
+  int res = codegen_gen_expression(file, expr, node_stack, st);
   if (res != 0) { return res; }
-  fputs(", %r10d\ntestl %r10d, %r10d\n", file);
+  fputs("pop %r10\ntestl %r10d, %r10d\n", file);
   int if_id = (*st.if_id_counter)++;
   fprintf(file, "jz IF%d_ELSE\n", if_id);
 
