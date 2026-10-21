@@ -1,5 +1,6 @@
 #include "src/symbols.h"
 #include <assert.h>
+#include <stddef.h>
 #include <string.h>
 
 #include <stdio.h>
@@ -58,6 +59,11 @@ struct VariableTable variable_table_create(void) {
   int res = variable_stack_create(&stack, 10);
   assert(res == 0);
   return (struct VariableTable){.stack = stack};
+}
+
+void variable_table_destroy(struct VariableTable table) {
+  int res = variable_stack_destroy(&table.stack);
+  assert(res == 0);
 }
 
 void variable_table_insert(struct VariableTable* const table, const char* const name_ptr, const size_t name_len, const enum datatype_e type) {
@@ -123,4 +129,9 @@ struct Variable* variable_table_get_var(const struct VariableTable* const table,
     }
   }
   return NULL;
+}
+
+struct Variable* variable_table_get_var_at_index(const struct VariableTable* const table, const size_t index) {
+  if (index >= table->stack.occupied) { return NULL; }
+  return &table->stack.nodes[index];
 }

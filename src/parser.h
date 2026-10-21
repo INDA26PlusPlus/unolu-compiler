@@ -38,6 +38,7 @@ typedef enum {
   ASTN_IF_ELSE,
   ASTN_LOCKIN,
   ASTN_LOCKIN67,
+  ASTN_ARGUMENT,
   ASTN_LOOP,
   ASTN_BREAK,
 } ast_node_e;
@@ -58,13 +59,17 @@ struct ASTNode {
       struct VariableTable local_variables;
       int first_statement_idx;
       // TODO: Arguments, you could implement similarly to a variable table but in the begining of a function you turn the args into local variables 
+      struct VariableTable parameters;
+      bool has_parameters;
     } function_decl;
     struct {
       struct {
         const char* ptr; 
         size_t len;
       } name;
-      // TODO: Arguments 
+      bool has_arguments;
+      int first_argument_idx;
+      size_t stack_usage;
     } function_call;
     struct {
       int statements_if_idx;
@@ -111,6 +116,10 @@ struct ASTNode {
       int current_idx;
       int next_idx; // May be empty (-1)
     } top_decl;
+    struct {
+      int current_idx;
+      int next_idx; 
+    } argument;
     struct {
       int value_idx; // May be empty (-1) if it is just a return
     } throw;

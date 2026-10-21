@@ -204,13 +204,115 @@ int codegen_gen_lockin67(FILE* const file, ASTNode* const lockin, struct ASTNode
   return 0;
 }
 
+int codegen_gen_var_or_int(FILE* const file, ASTNode* const value, const struct SymbolTable st) {
+  switch(value->node_type) {
+    case ASTN_INT:
+      fprintf(file, "$%d", value->u.integer);
+      break;
+    case ASTN_UINT:
+      fprintf(file, "$%u", value->u.uinteger);
+      break;
+    case ASTN_VAR:
+      assert(value->u.var.name.ptr != NULL);
+      codegen_gen_variable(file, value->u.var.name.ptr, value->u.var.name.len, st);
+      break;
+    default:
+      return 1;
+  }
+  return 0;
+}
+
+size_t codegen_gen_single_argument(FILE* const file, ASTNode* const arg_value, size_t arg_index, const struct SymbolTable st) {
+  assert(arg_value != NULL);
+  int res;
+  switch(arg_index) {
+    case 0:
+      fputs("movl ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      fputs(", %edi", file);
+      break;
+    case 1:
+      fputs("movl ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      fputs(", %esi", file);
+      break;
+    case 2:
+      fputs("movl ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      fputs(", %edx", file);
+      break;
+    case 3:
+      fputs("movl ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      fputs(", %ecx", file);
+      break;
+    case 4:
+      fputs("movl ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      fputs(", %r8d", file);
+      break;
+    case 5:
+      fputs("movl ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      fputs(", %r9d", file);
+      break;
+    default:
+      fputs("push ", file);
+      res = codegen_gen_var_or_int(file, arg_value, st);
+      assert(res == 0);
+      if (res)  { return res; }
+      break;
+  }
+  fputc('\n', file);
+  return 0;
+}
+ 
+int codegen_gen_arguments(FILE* const file, ASTNode* const arg, struct ASTNodeStack* const node_stack, const struct SymbolTable st, const size_t arg_depth) {
+  assert(arg != NULL);
+  assert(arg->node_type == ASTN_ARGUMENT);
+  int res;
+  // Needs to do the recursive call before writing nodes argument to make the arguments be in reverse order on the stack
+  if (arg->u.argument.next_idx != -1) {
+    ASTNode* const next_arg = astnode_stack_get_node(node_stack, arg->u.argument.next_idx);
+    assert(next_arg != NULL);
+    res = codegen_gen_arguments(file, next_arg, node_stack, st, arg_depth+1);
+    if (res)  { return res; }
+  }
+  ASTNode* const arg_value = astnode_stack_get_node(node_stack, arg->u.argument.current_idx);
+  assert(arg_value != NULL);
+  res = codegen_gen_single_argument(file, arg_value, arg_depth, st);
+  if (res)  { return res; }
+  return 0;
+}
+
 int codegen_gen_function_call(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
   (void)(node_stack);
   (void)(st);
   printf("# codegen_gen_function_call\n");
   assert(function->node_type == ASTN_FUNCTION_CALL);
   // Ensure 16 byte alignment
-  fputs("movq %rsp, -24(%rbp)\nandq $-16, %rsp\ncall ", file);
+  fputs("movq %rsp, -24(%rbp)\nandq $-16, %rsp\n", file);
+  if (function->u.function_call.has_arguments) {
+    if (function->u.function_call.stack_usage % 16 != 0) {
+      fprintf(file, "subq $%d, %%rsp\n", 16 - (int)(function->u.function_call.stack_usage % 16));
+    }
+    ASTNode* const first_arg = astnode_stack_get_node(node_stack, function->u.function_call.first_argument_idx);
+    assert(first_arg != NULL);
+    codegen_gen_arguments(file, first_arg, node_stack, st, 0);
+  }
+  fputs("call ", file);
   codegen_gen_function_identifier(file, function);
   fputs("\nmovq -24(%rbp), %rsp\n", file);
   return 0;
@@ -239,7 +341,7 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
       break;
     // signed and unsigned multiplication behaves the same on a subset of the bits given there is no funny business on the upper bits
     case ASTN_MUL:
-      fputs("imull %r10, %r11\n", file);
+      fputs("imull %r10d, %r11d\n", file);
       break;
     case ASTN_IDIV:
       // Does not preserve eax and edx
@@ -359,9 +461,7 @@ int codegen_gen_assignment(FILE* const file, ASTNode* const assign, struct ASTNo
   ASTNode* const expr = astnode_stack_get_node(node_stack, assign->u.assign.expr_idx);
   assert(expr != NULL);
   int res = codegen_gen_expression(file, expr, node_stack, st);
-  if (res != 0) {
-    return res;
-  }
+  if (res)  { return res; }
 
   fputs("pop %r10\n", file);
   fputs("movl %r10d, ", file);
@@ -483,7 +583,54 @@ int codegen_gen_block(FILE* const file, ASTNode* const block, struct ASTNodeStac
   return 0;
 }
 
+int codegen_gen_parameters(FILE* const file, struct VariableTable* parameters, const size_t base_offset) {
+  assert(parameters->stack.occupied != 0); 
+  int count = parameters->stack.occupied;
 
+  fputs("movl %edi, ", file);
+  codegen_gen_local_variable_from_offset(file, variable_table_get_var_at_index(parameters, 0)->offset + base_offset);
+  fputc('\n', file);
+  if (--count == 0) { return 0; }
+
+  fputs("movl %esi, ", file);
+  codegen_gen_local_variable_from_offset(file, variable_table_get_var_at_index(parameters, 1)->offset + base_offset);
+  fputc('\n', file);
+  if (--count == 0) { return 0; }
+
+  fputs("movl %edx, ", file);
+  codegen_gen_local_variable_from_offset(file, variable_table_get_var_at_index(parameters, 2)->offset + base_offset);
+  fputc('\n', file);
+  if (--count == 0) { return 0; }
+
+  fputs("movl %ecx, ", file);
+  codegen_gen_local_variable_from_offset(file, variable_table_get_var_at_index(parameters, 3)->offset + base_offset);
+  fputc('\n', file);
+  if (--count == 0) { return 0; }
+
+  fputs("movl %r8d, ", file);
+  codegen_gen_local_variable_from_offset(file, variable_table_get_var_at_index(parameters, 4)->offset + base_offset);
+  fputc('\n', file);
+  if (--count == 0) { return 0; }
+
+  fputs("movl %r9d, ", file);
+  codegen_gen_local_variable_from_offset(file, variable_table_get_var_at_index(parameters, 5)->offset + base_offset);
+  fputc('\n', file);
+  if (--count == 0) { return 0; }
+
+  // First 8 byte is for the return address, 
+  for (int i = 0; i<parameters->stack.occupied-6; ++i) {
+    struct Variable* var = variable_table_get_var_at_index(parameters, i+6);
+    assert(var != NULL);
+    fprintf(file, "movl %d(%%rbp), %%r10d\n", (i+1)*8);
+    if (var->type == DT_SBYTE || var->type == DT_UBYTE) {
+      fputs("andl $255, %r10d\n", file);
+    }
+    fputs("\nmovl %r10d, ", file);
+    codegen_gen_local_variable_from_offset(file, var->offset + base_offset);
+    fputc('\n', file);
+  }
+  return 0;
+}
 
 int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
   printf("# codegen_gen_function_decl\n");
@@ -491,7 +638,22 @@ int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct 
   fputs( ".text\n", file);
   codegen_gen_function_identifier(file, function);
   fputs(":\nmovq %rbp, -8(%rsp)\nmovq %rsp, -16(%rsp)\nmovq %rsp, %rbp\n", file);
-  fprintf(file, "subq $%d, %%rsp\n", CODEGEN_FUNCTION_RESERVED_STACK_SPACE+variable_table_get_total_size(&function->u.function_decl.local_variables));
+  if (function->u.function_decl.has_parameters) {
+    fprintf(file, "subq $%d, %%rsp\n", CODEGEN_FUNCTION_RESERVED_STACK_SPACE
+                                       + variable_table_get_total_size(&function->u.function_decl.local_variables)
+                                       + variable_table_get_total_size(&function->u.function_decl.parameters));
+    size_t base_offset = variable_table_get_total_size(&function->u.function_decl.local_variables);
+    for (size_t i = 0; i<function->u.function_decl.parameters.stack.occupied; ++i) {
+      struct Variable* var = variable_table_get_var_at_index(&function->u.function_decl.parameters, i);
+      assert(var != NULL);
+      if (var == NULL) { return 1; }
+      variable_table_insert(&function->u.function_decl.local_variables, var->name.ptr, var->name.len, var->type);
+    }
+    int res = codegen_gen_parameters(file, &function->u.function_decl.parameters, base_offset);
+    if (res) { return res; }
+  } else {
+    fprintf(file, "subq $%d, %%rsp\n", CODEGEN_FUNCTION_RESERVED_STACK_SPACE+variable_table_get_total_size(&function->u.function_decl.local_variables));
+  }
 
   ASTNode* const first_statement = astnode_stack_get_node(node_stack, function->u.function_decl.first_statement_idx);
   assert(first_statement != NULL);

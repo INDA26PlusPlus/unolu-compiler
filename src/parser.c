@@ -3,6 +3,7 @@
 #include "src/symbols.h"
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -262,6 +263,61 @@ int parse_variable_declaration(struct Parser* const parser, const bool is_local)
   return astnode_stack_top_idx(parser->stack);
 }
 
+int parse_single_argument(struct Parser* const parser, size_t* const stack_usage, bool count_stack) {
+  printf("# parse_single_argument\n");
+  assert(parser != NULL);
+  int node_idx = -1;
+  Token t = parser_peek(parser);
+  switch (t.tok_type) {
+    // Pushing to the stack in 64 bit mode decrements the stack by 8
+    case TOKT_VAR:
+      node_idx = parse_variable(parser);
+      if (count_stack) {
+        *stack_usage += 8;
+      }
+      break;
+    case TOKT_UINT:
+    case TOKT_INT:
+      node_idx = parse_integer(parser);
+      if (count_stack) {
+        *stack_usage += 8;
+      }
+      break;
+    default:
+      return -1;
+  }
+  assert(node_idx != -1);
+  return node_idx;
+}
+
+int parse_arguments(struct Parser* parser, size_t* const stack_usage, int arg_depth) {
+  printf("# parse_arguments\n");
+  assert(parser != NULL);
+  if (parser_peek(parser).tok_type == TOKT_RPAREN) {
+    return -1;
+  } else if (parser_is_end(parser)) {
+    return -1; // ERROR, Parser should not be end here
+  } else  {
+    const int current_idx = parse_single_argument(parser, stack_usage, arg_depth >= 6); 
+    assert(current_idx != -1);
+    if (current_idx == -1) {
+      return -1; // ERROR, could not parse argument
+    }
+    const ASTNode argument = {
+      .node_type = ASTN_ARGUMENT,
+      .u.argument = {
+        .current_idx = current_idx,
+        .next_idx = parse_arguments(parser, stack_usage, arg_depth+1)
+      },
+    };
+    int res = astnode_stack_pusha(parser->stack, argument);
+    assert(res == 0);
+    const int argument_idx = astnode_stack_top_idx(parser->stack);
+    assert(argument_idx != -1);
+    return argument_idx;
+  }
+}
+
 int parse_function_call(struct Parser* const parser) {
   printf("# parse_function_call\n");
   assert(parser != NULL);
@@ -269,9 +325,16 @@ int parse_function_call(struct Parser* const parser) {
   if (t.tok_type != TOKT_FUNCTION) {
     return -1;
   }
-  ASTNode function_call = {.node_type = ASTN_FUNCTION_CALL, .u.function_call.name = { .ptr = t.data.string.ptr, .len = t.data.string.length } };
+  ASTNode function_call = {.node_type = ASTN_FUNCTION_CALL, .u.function_call = { .name = { .ptr = t.data.string.ptr, .len = t.data.string.length }, .has_arguments = false, .first_argument_idx = -1, .stack_usage = 0 } };
   if (parser_next(parser).tok_type != TOKT_LPAREN) { return -1; }
-  // ARGS
+  if (parser_peek(parser).tok_type != TOKT_RPAREN) {
+    size_t stack_usage = 0;
+    int first_argument_idx = parse_arguments(parser, &stack_usage, 0);
+    assert(first_argument_idx != -1);
+    function_call.u.function_call.has_arguments = true;
+    function_call.u.function_call.first_argument_idx = first_argument_idx;
+    function_call.u.function_call.stack_usage = stack_usage;
+  }
   if (parser_next(parser).tok_type != TOKT_RPAREN) { return -1; }
   int res = astnode_stack_pusha(parser->stack, function_call);
   if (res) { return -1; } 
@@ -632,6 +695,40 @@ int parse_block(struct Parser* const parser) {
   }
 }
 
+// Returns 0 on success
+int parse_parameters(struct Parser* const parser, struct VariableTable* parameters) {
+  assert(parser != NULL);
+  assert(parameters != NULL);
+  Token t = parser_peek(parser);
+  while (t.tok_type != TOKT_RPAREN) {
+    parser_next(parser);
+    enum datatype_e dt;
+    switch (t.tok_type) {
+      case TOKT_UBYTE:
+        dt = DT_UBYTE;
+        break;
+      case TOKT_SBYTE:
+        dt = DT_SBYTE;
+        break;
+      case TOKT_UQUAD:
+        dt = DT_UQUAD;
+        break;
+      case TOKT_SQUAD:
+        dt = DT_SQUAD;
+        break;
+      default:
+        return -1;
+    }
+    t = parser_next(parser);
+    if (t.tok_type != TOKT_VAR) {
+      fprintf(stderr, "Parser: Expected token type variable after type in parameter, got token type %d instead\n", t.tok_type);
+      return -1;
+    }
+    variable_table_insert(parameters, t.data.string.ptr, t.data.string.length, dt);
+    t = parser_peek(parser);
+  }
+  return 0;
+}
 
 int parse_function_declaration(struct Parser* const parser) {
   printf("# parse_function_decl\n");
@@ -640,12 +737,21 @@ int parse_function_declaration(struct Parser* const parser) {
   if (t.tok_type != TOKT_FUN) { return -1; }
   t = parser_next(parser);
   if (t.tok_type != TOKT_FUNCTION) { return -1; }
-  ASTNode function = {.node_type = ASTN_FUNCTION_DECL, .u.function_decl = { .name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
-
-   
+  ASTNode function = {.node_type = ASTN_FUNCTION_DECL, .u.function_decl = { .name = {.ptr = t.data.string.ptr, .len = t.data.string.length }, .has_parameters = false}};
   if (parser_next(parser).tok_type != TOKT_LPAREN) { return -1; }
-  // TODO: Parse arguments
-  if (parser_next(parser).tok_type != TOKT_RPAREN) { return -1; }
+  if (parser_peek(parser).tok_type != TOKT_RPAREN) {
+    struct VariableTable parameters = variable_table_create();
+    int res = parse_parameters(parser, &parameters);
+    if (res) {
+      goto fail;
+    } 
+    function.u.function_decl.has_parameters = true;
+    function.u.function_decl.parameters = parameters;
+  }
+
+  if (parser_next(parser).tok_type != TOKT_RPAREN) {
+    goto fail;
+  }
   t = parser_next(parser);
   switch (t.tok_type) {
     case TOKT_UBYTE:
@@ -664,9 +770,11 @@ int parse_function_declaration(struct Parser* const parser) {
       function.u.function_decl.return_type = DT_VOID;
       goto skip_lbrace;
     default:
-      return -1;
+      goto fail;
   }
-  if (parser_next(parser).tok_type != TOKT_LBRACE) { return -1; }
+  if (parser_next(parser).tok_type != TOKT_LBRACE) {
+    goto fail;
+  }
   skip_lbrace:
   ;
   struct VariableTable local_variables = variable_table_create();
@@ -674,16 +782,27 @@ int parse_function_declaration(struct Parser* const parser) {
   const int block_idx = parse_block(parser); 
   // The block can only be empty if it is a void function
   if (block_idx == -1 && function.u.function_decl.return_type != DT_VOID) {
-    return -1;
+    goto fail_with_locals;
   }
   t = parser_next(parser);
-  if (t.tok_type != TOKT_RBRACE) { return -1; }
+  if (t.tok_type != TOKT_RBRACE) {
+
+    goto fail_with_locals;
+  }
   function.u.function_decl.first_statement_idx = block_idx;
   function.u.function_decl.local_variables = local_variables;
   parser->local_variable_table = NULL;
   int res = astnode_stack_pusha(parser->stack, function);
-  if (res) { return -1; } 
+  if (res) {
+    goto fail_with_locals;
+  } 
   return astnode_stack_top_idx(parser->stack);
+
+  fail_with_locals:
+  variable_table_destroy(local_variables);
+  fail:
+  variable_table_destroy(function.u.function_decl.parameters);
+  return -1;
 }
 
 
