@@ -37,14 +37,37 @@ const Token code1_tokens[] = {
 };
 
 
-const char code2_str[] = "Fun entry-point() Squad {\n  Ubyte $char;\n  LockIn $char;\n  If $char = 'x' {\n    \
-                        Yap $char;\n  } Else {\n    Uquad $n;\n    Assign 10u / 10u To $n;\n    Squad $i;\n    \
-                        Loop {\n      LockIn67 $i;\n      If $n = 4 Or ($i*2>-1) {\n        Throw -5;\n      \
-                        }\n      Assign $n+1 To $n;\n      If $i + $n _ 2u < 4 And $n = 2 {\n        \
-                        Break;\n      }\n    }\n  }\n  Throw 0;\n}";
+const char code2_str[] = "\
+Globalize entry-point .mymain;\n\
+Fun entry-point() Squad {\n\
+  Ubyte $char;\n\
+  LockIn $char;\n\
+  If $char = 'x' {\n\
+    Yap $char;\n\
+  } Else {\n\
+    Uquad $n;\n\
+    Assign 10u / 10u To $n;\n\
+    Squad $i;\n\
+    Loop {\n\
+      LockIn67 $i;\n\
+        If $n = 4 Or ($i*2>-1) {\n\
+          Throw -5;\n\
+        }\n\
+        Assign $n+1 To $n;\n\
+        If $i + $n _ 2u < 4 And $n = 2 {\n\
+          Break;\n\
+        }\n\
+      }\n\
+  }\n\
+  Throw 0;\n\
+}";
 
 
 const Token code2_tokens[] = {
+  {.tok_type = TOKT_GLOBALIZE},
+  {.tok_type = TOKT_FUNCTION, .data.string = {.ptr = "entry-point", .length = 11}},
+  {.tok_type = TOKT_GLOBAL_IDENTIFIER, .data.string = {.ptr = "mymain", .length = 6}},
+  {.tok_type = TOKT_SEMICOLON},
   {.tok_type = TOKT_FUN},
   {.tok_type = TOKT_FUNCTION, .data.string = {.ptr = "entry-point", .length = 11}},
   {.tok_type = TOKT_LPAREN},
@@ -73,7 +96,7 @@ const Token code2_tokens[] = {
   {.tok_type = TOKT_SEMICOLON},
   {.tok_type = TOKT_ASSIGN},
   {.tok_type = TOKT_UINT, .data.uinteger = 10 },
-  {.tok_type = TOKT_DIV},
+  {.tok_type = TOKT_IDIV},
   {.tok_type = TOKT_UINT, .data.uinteger = 10 },
   {.tok_type = TOKT_TO},
   {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
@@ -90,7 +113,7 @@ const Token code2_tokens[] = {
   {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
   {.tok_type = TOKT_EQ},
   {.tok_type = TOKT_INT, .data.integer = 4 },
-  {.tok_type = TOKT_OR},
+  {.tok_type = TOKT_LOGOR},
   {.tok_type = TOKT_LPAREN},
   {.tok_type = TOKT_VAR, .data.string = {.ptr = "i", .length = 1}},
   {.tok_type = TOKT_MUL},
@@ -118,7 +141,7 @@ const Token code2_tokens[] = {
   {.tok_type = TOKT_UINT, .data.uinteger = 2 },
   {.tok_type = TOKT_LESS},
   {.tok_type = TOKT_INT, .data.integer = 4 },
-  {.tok_type = TOKT_AND},
+  {.tok_type = TOKT_LOGAND},
   {.tok_type = TOKT_VAR, .data.string = {.ptr = "n", .length = 1}},
   {.tok_type = TOKT_EQ},
   {.tok_type = TOKT_INT, .data.integer = 2 },

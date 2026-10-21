@@ -172,6 +172,7 @@ void astnode_stack_removen(struct ASTNodeStack* const stack, const size_t n);
 ASTNode* astnode_stack_get_node(struct ASTNodeStack* const stack, const int index);
 
 struct Parser parser_create(struct TokenStack* const token_stack, struct ASTNodeStack* const node_stack);
+void parser_destroy(struct Parser* const parser);
 Token parser_next(struct Parser* const parser);
 Token parser_peek(struct Parser* const parser);
 bool parser_is_end(struct Parser* const parser);

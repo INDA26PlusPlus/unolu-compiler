@@ -10,20 +10,16 @@ project(
 sources = [
   'src/main.c',
   'src/lexer.c',
+  'src/parser.c',
+  'src/symbols.c',
+  'src/codegen.c',
 ]
 
 exe = executable(
-  'main',
+  'einaplc',
   sources,
   install : true,
 )
 
-test_sources = [
-  'test/main.c',
-  'test/lexer.c',
-  'src/lexer.c',
-]
-
 test('lexer', executable('test_lexer', ['test/test_lexer.c', 'src/lexer.c']), protocol: 'tap', suite: ['lexer'] )
-
 

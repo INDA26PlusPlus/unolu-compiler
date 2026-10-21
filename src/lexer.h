@@ -60,7 +60,6 @@ enum tok_type_e {
 };
 
 typedef struct {
-  enum tok_type_e tok_type;
   union {
     uint32_t uinteger;
     int32_t integer;
@@ -69,6 +68,9 @@ typedef struct {
       size_t length;
     } string;
   } data;
+  enum tok_type_e tok_type;
+  uint32_t line;
+  uint16_t col;
 } Token;
 
 struct TokenStack {
@@ -83,6 +85,8 @@ struct Lexer {
   size_t string_size;
   size_t current_pos;
   struct TokenStack stack;
+  size_t line_start;
+  uint32_t line_count;
 };
 
 

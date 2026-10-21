@@ -8,7 +8,6 @@
 #include <stdio.h>
 
 void codegen_gen_return(FILE* const file) {
-  printf("# codegen_gen_return\n");
   fputs("movq -16(%rbp), %rsp\nmovq -8(%rbp), %rbp\nret\n", file);
 }
 
@@ -23,7 +22,6 @@ void codegen_gen_global_variable_from_offset(FILE* const file, int offset) {
 }
 
 enum datatype_e codegen_gen_variable(FILE* const file, const char* const name_ptr, const size_t name_len, const struct SymbolTable st) {
-  printf("# codegen_gen_variable\n");
   struct Variable* var = variable_table_get_var(&st.global_variables, name_ptr, name_len);
   if (var != NULL) {
       codegen_gen_global_variable_from_offset(file, var->offset);
@@ -62,7 +60,6 @@ void codegen_gen_function_identifier(FILE* const file, ASTNode* const function) 
 }
 
 int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_throw\n");
   assert(throw != NULL);
   if (throw->u.throw.value_idx != -1) {
     fputs("xorq %rax, %rax\nmovl ", file);
@@ -92,7 +89,6 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
 
 
 int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_yap\n");
   assert(yap!= NULL);
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
@@ -120,7 +116,6 @@ int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* c
 }
 
 int codegen_gen_yap67(FILE* const file, ASTNode* const yap, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_yap\n");
   assert(yap!= NULL);
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
@@ -163,7 +158,6 @@ int codegen_gen_yap67(FILE* const file, ASTNode* const yap, struct ASTNodeStack*
 }
 
 int codegen_gen_lockin(FILE* const file, ASTNode* const lockin, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_lockin\n");
   assert(lockin!= NULL);
   ASTNode* const var_node = astnode_stack_get_node(node_stack, lockin->u.lockin.var_idx);
   if (var_node == NULL) {
@@ -184,7 +178,6 @@ int codegen_gen_lockin(FILE* const file, ASTNode* const lockin, struct ASTNodeSt
 }
 
 int codegen_gen_lockin67(FILE* const file, ASTNode* const lockin, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_lockin67\n");
   assert(lockin!= NULL);
   ASTNode* const var_node = astnode_stack_get_node(node_stack, lockin->u.lockin.var_idx);
   if (var_node == NULL) {
@@ -300,7 +293,6 @@ int codegen_gen_arguments(FILE* const file, ASTNode* const arg, struct ASTNodeSt
 int codegen_gen_function_call(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
   (void)(node_stack);
   (void)(st);
-  printf("# codegen_gen_function_call\n");
   assert(function->node_type == ASTN_FUNCTION_CALL);
   // Ensure 16 byte alignment
   fputs("movq %rsp, -24(%rbp)\nandq $-16, %rsp\n", file);
@@ -322,7 +314,6 @@ int codegen_gen_function_call(FILE* const file, ASTNode* const function, struct 
 int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNodeStack* const node_stack, const struct SymbolTable st);
 
 int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_binop\n");
   assert(binop->u.binop.left_idx != -1);
   assert(binop->u.binop.right_idx != -1);
   ASTNode* const left = astnode_stack_get_node(node_stack, binop->u.binop.left_idx);
@@ -383,7 +374,6 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
 }
 
 int codegen_gen_uniop(FILE* const file, ASTNode* const uniop, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_uniop\n");
   assert(uniop->u.uniop.operand_idx != -1);
   ASTNode* const operand = astnode_stack_get_node(node_stack, uniop->u.uniop.operand_idx);
   assert(operand != NULL);
@@ -406,7 +396,6 @@ int codegen_gen_uniop(FILE* const file, ASTNode* const uniop, struct ASTNodeStac
 
 
 int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_expression\n");
   assert(expr != NULL);
   int res;
   switch (expr->node_type) {
@@ -453,7 +442,6 @@ int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNode
 }
 
 int codegen_gen_assignment(FILE* const file, ASTNode* const assign, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_assignment\n");
   assert(assign!= NULL);
   if (assign->node_type != ASTN_ASSIGNMENT) {
     return 1;
@@ -476,7 +464,6 @@ int codegen_gen_assignment(FILE* const file, ASTNode* const assign, struct ASTNo
 int codegen_gen_block(FILE* const file, ASTNode* const block, struct ASTNodeStack* const node_stack, const struct SymbolTable st);
 
 int codegen_gen_if_else(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
-  printf("# codegen_gen_if_else\n");
   assert(node->node_type == ASTN_IF_ELSE);
   assert(node->u.if_else.statements_if_idx != -1);
   assert(node->u.if_else.expr_idx != -1);
@@ -507,7 +494,6 @@ int codegen_gen_if_else(FILE* const file, ASTNode* const node, struct ASTNodeSta
 }
 
 int codegen_gen_loop(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
-  printf("# codegen_gen_loop\n");
   assert(node->node_type == ASTN_LOOP);
   assert(node->u.loop.first_statement_idx != -1);
   assert(node->u.loop.loop_id != -1);
@@ -523,7 +509,6 @@ int codegen_gen_loop(FILE* const file, ASTNode* const node, struct ASTNodeStack*
 int codegen_gen_break(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
   (void)(node_stack);
   (void)(st);
-  printf("# codegen_gen_break\n");
   assert(node->node_type == ASTN_BREAK);
   assert(node->u.break_stmnt.loop_id != -1);
   fprintf(file, "jmp LOOP%d_END\n", node->u.break_stmnt.loop_id);
@@ -532,7 +517,6 @@ int codegen_gen_break(FILE* const file, ASTNode* const node, struct ASTNodeStack
 
 
 int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_statement\n");
   assert(node != NULL);
   switch (node->node_type) {
     case ASTN_FUNCTION_CALL:
@@ -550,7 +534,6 @@ int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeS
     case ASTN_ASSIGNMENT:
       return codegen_gen_assignment(file, node, node_stack, st);
     case ASTN_VAR_DECL:
-      printf("# local var decl (nothing)\n");
       return 0;
     case ASTN_LOOP:
       return codegen_gen_loop(file, node, node_stack, st);
@@ -565,7 +548,6 @@ int codegen_gen_statement(FILE* const file, ASTNode* const node, struct ASTNodeS
 }
 
 int codegen_gen_block(FILE* const file, ASTNode* const block, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_block\n");
   if (block == NULL) {
     return 0;
   }
@@ -633,7 +615,6 @@ int codegen_gen_parameters(FILE* const file, struct VariableTable* parameters, c
 }
 
 int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
-  printf("# codegen_gen_function_decl\n");
   assert(function != NULL);
   fputs( ".text\n", file);
   codegen_gen_function_identifier(file, function);
@@ -685,7 +666,6 @@ int codegen_gen_globalization_decl(FILE* const file, ASTNode* const globalizatio
 }
 
 int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_top_level_declaration\n");
   if (top_decl == NULL) {
     return 0;
   }
@@ -696,7 +676,6 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
         res = codegen_gen_function_decl(file, top_decl, node_stack, st);
         return res;
       case ASTN_VAR_DECL:
-        printf("# global var decl (nothing)\n");
         return 0;
       case ASTN_GLOBL_DECL:
         res = codegen_gen_globalization_decl(file, top_decl, node_stack, st);
@@ -708,7 +687,6 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
 }
 
 int codegen_gen_top(FILE* const file, ASTNode* const top, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
-  printf("# codegen_gen_top\n");
   if (top == NULL) {
     return 0;
   }

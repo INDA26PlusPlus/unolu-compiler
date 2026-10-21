@@ -109,6 +109,7 @@ int variable_table_get_total_size(const struct VariableTable* const table) {
   if (var == NULL) {
     return 0;
   }
+  assert(var->type != DT_VOID);
   switch (var->type) {
     case DT_SBYTE:
     case DT_UBYTE:
@@ -117,8 +118,9 @@ int variable_table_get_total_size(const struct VariableTable* const table) {
       // everything is 4 byte aligned
       return var->offset + 4; 
     case DT_VOID:
-      exit(-101);
+      break;
   }
+  return 0;
 }
 
 struct Variable* variable_table_get_var(const struct VariableTable* const table, const char* const name_ptr, const size_t name_len) {

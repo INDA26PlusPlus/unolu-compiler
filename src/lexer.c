@@ -74,6 +74,8 @@ int lexer_create(struct Lexer* const lexer, const char* const string, const size
   lexer->string = string;
   lexer->current_pos = 0;
   lexer->stack = stack;
+  lexer->line_start = 0;
+  lexer->line_count = 1;
   return 0;
 }
 
@@ -86,10 +88,11 @@ int lexer_destroy(struct Lexer* const lexer) {
   int err;
   err = token_stack_destroy(&lexer->stack);
   if (err) { return 100 + err; }
-  free((void*)lexer->string);
   lexer->string = NULL;
   lexer->string_size = 0;
   lexer->current_pos = 0;
+  lexer->line_start = 0;
+  lexer->line_count = 0;
   return 0;
 }
 
@@ -161,6 +164,10 @@ size_t lexer_find_integer_size(struct Lexer* const lexer) {
 
 Token lexer_tokenize(struct Lexer* const lexer) {
   while (isblank(lexer_current_character(lexer)) || lexer_current_character(lexer) == '\n') {
+    if (lexer_current_character(lexer) == '\n') {
+      lexer->line_start = lexer->current_pos + 1;
+      ++lexer->line_count;
+    }
     lexer_next(lexer);
   }
   const char c = lexer_current_character(lexer);
@@ -168,19 +175,19 @@ Token lexer_tokenize(struct Lexer* const lexer) {
   switch (c) {
       case '!':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_LOGNOT};
+        return (Token){.tok_type=TOKT_LOGNOT, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '~':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_BITNOT};
+        return (Token){.tok_type=TOKT_BITNOT, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '+':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_PLUS};
+        return (Token){.tok_type=TOKT_PLUS, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '_':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_MINUS};
+        return (Token){.tok_type=TOKT_MINUS, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '*':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_MUL};
+        return (Token){.tok_type=TOKT_MUL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '/':
         ;
         enum tok_type_e tokt = TOKT_IDIV;
@@ -189,50 +196,50 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           tokt = TOKT_UDIV;
         }
         ++lexer->current_pos;
-        return (Token){.tok_type=tokt};
+        return (Token){.tok_type=tokt, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '&':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_BITAND};
+        return (Token){.tok_type=TOKT_BITAND, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '|':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_BITOR};
+        return (Token){.tok_type=TOKT_BITOR, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '^':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_BITXOR};
+        return (Token){.tok_type=TOKT_BITXOR, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '(':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_LPAREN};
+        return (Token){.tok_type=TOKT_LPAREN, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case ')':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_RPAREN};
+        return (Token){.tok_type=TOKT_RPAREN, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '{':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_LBRACE};
+        return (Token){.tok_type=TOKT_LBRACE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '}':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_RBRACE};
+        return (Token){.tok_type=TOKT_RBRACE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case ';':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_SEMICOLON};
+        return (Token){.tok_type=TOKT_SEMICOLON, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '=':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_EQ};
+        return (Token){.tok_type=TOKT_EQ, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '.':
         lexer_next(lexer);
         start = lexer->current_pos;
         id_sz = lexer_find_global_identifier_size(lexer);
         if (id_sz == 0) {
           fprintf(stderr, "Lexer: Global Identifier is empty (illegal token)\n");
-          return (Token){.tok_type=TOKT_ILLEGAL};
+          return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
         }
         lexer->current_pos += id_sz;
         return (Token){.tok_type=TOKT_GLOBAL_IDENTIFIER, .data.string = { .ptr = &lexer->string[start], .length = id_sz }};
       case '<':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_LESS};
+        return (Token){.tok_type=TOKT_LESS, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '>':
         ++lexer->current_pos;
-        return (Token){.tok_type=TOKT_GREAT};
+        return (Token){.tok_type=TOKT_GREAT, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '-':
         if (isdigit(lexer_peek(lexer, 1))) {
           const char first_digit = lexer_next(lexer);
@@ -241,37 +248,37 @@ Token lexer_tokenize(struct Lexer* const lexer) {
           uint64_t val = atoll(lexer_get_ptr(lexer));
           if (first_digit != '0' && val == 0) {
             fprintf(stderr, "Lexer: First digit of a negative number cannot be 0 (illegal token)\n");
-            return (Token){.tok_type=TOKT_ILLEGAL};
+            return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
           }
           if (lexer_peek(lexer, int_sz) == 'u') {
             lexer_nextn(lexer, int_sz+1);
-            return (Token){.tok_type=TOKT_UINT, .data.uinteger = int_sz};
+            return (Token){.tok_type=TOKT_UINT, .data.uinteger = int_sz, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
           } else {
             lexer_nextn(lexer, int_sz);
-            return (Token){.tok_type=TOKT_INT, .data.integer = int_sz};
+            return (Token){.tok_type=TOKT_INT, .data.integer = int_sz, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
           } 
         } else {
           fprintf(stderr, "Lexer: Integer expected after \'-\' (illegal token)\n");
-          return (Token){.tok_type=TOKT_ILLEGAL};
+          return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
         }
       case '\'':
         if (lexer_peek(lexer, 2) != '\'') {
           fprintf(stderr, "Lexer: Closing single quote not found (illegal token)\n");
-          return (Token){.tok_type=TOKT_ILLEGAL};
+          return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
         }
         unsigned int uint = lexer_peek(lexer, 1);
         lexer->current_pos += 3;
-        return (Token){.tok_type=TOKT_UINT, .data.uinteger = uint, };
+        return (Token){.tok_type=TOKT_UINT, .data.uinteger = uint, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       case '$':
         lexer_next(lexer);
         start = lexer->current_pos;
         id_sz = lexer_find_identifier_size(lexer);
         if (id_sz == 0) {
           fprintf(stderr, "Lexer: Identifier is empty (illegal token)\n");
-          return (Token){.tok_type=TOKT_ILLEGAL};
+          return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
         }
         lexer->current_pos += id_sz;
-        return (Token){.tok_type=TOKT_VAR, .data.string = { .ptr = &lexer->string[start], .length = id_sz }};
+        return (Token){.tok_type=TOKT_VAR, .data.string = { .ptr = &lexer->string[start], .length = id_sz }, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       default:
         break;
     }
@@ -283,79 +290,79 @@ Token lexer_tokenize(struct Lexer* const lexer) {
         case 2:
           // If, Or, To
           if (!strncmp(str, "If", 2)) {
-            return (Token){.tok_type=TOKT_IF};            
+            return (Token){.tok_type=TOKT_IF, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Or", 2)) {
-            return (Token){.tok_type=TOKT_LOGOR};            
+            return (Token){.tok_type=TOKT_LOGOR, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "To", 2)) {
-            return (Token){.tok_type=TOKT_TO};            
+            return (Token){.tok_type=TOKT_TO, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         case 3:
           // And, Yap, Mod 
           if (!strncmp(str, "And", 3)) {
-            return (Token){.tok_type=TOKT_LOGAND};            
+            return (Token){.tok_type=TOKT_LOGAND, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Yap", 3)) {
-            return (Token){.tok_type=TOKT_YAP};            
+            return (Token){.tok_type=TOKT_YAP, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Fun", 3)) {
-            return (Token){.tok_type=TOKT_FUN};            
+            return (Token){.tok_type=TOKT_FUN, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Mod", 3)) {
-            return (Token){.tok_type=TOKT_MOD};            
+            return (Token){.tok_type=TOKT_MOD, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         case 4:
           // Loop, Else,  
           if (!strncmp(str, "Loop", 4)) {
-            return (Token){.tok_type=TOKT_LOOP};            
+            return (Token){.tok_type=TOKT_LOOP, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Else", 4)) {
-            return (Token){.tok_type=TOKT_ELSE};            
+            return (Token){.tok_type=TOKT_ELSE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         case 5:
           if (!strncmp(str, "Yap67", 5)) {
-            return (Token){.tok_type=TOKT_YAP67};            
+            return (Token){.tok_type=TOKT_YAP67, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Break", 5)) {
-            return (Token){.tok_type=TOKT_BREAK};            
+            return (Token){.tok_type=TOKT_BREAK, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Throw", 5)) {
-            return (Token){.tok_type=TOKT_THROW};            
+            return (Token){.tok_type=TOKT_THROW, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Squad", 5)) {
-            return (Token){.tok_type=TOKT_SQUAD};            
+            return (Token){.tok_type=TOKT_SQUAD, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Uquad", 5)) {
-            return (Token){.tok_type=TOKT_UQUAD};            
+            return (Token){.tok_type=TOKT_UQUAD, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Sbyte", 5)) {
-            return (Token){.tok_type=TOKT_SBYTE};            
+            return (Token){.tok_type=TOKT_SBYTE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Ubyte", 5)) {
-            return (Token){.tok_type=TOKT_UBYTE};            
+            return (Token){.tok_type=TOKT_UBYTE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         case 6:
           // LockIn
           if (!strncmp(str, "LockIn", 6)) {
-            return (Token){.tok_type=TOKT_LOCKIN};            
+            return (Token){.tok_type=TOKT_LOCKIN, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else if (!strncmp(str, "Assign", 6)) {
-            return (Token){.tok_type=TOKT_ASSIGN};            
+            return (Token){.tok_type=TOKT_ASSIGN, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         case 8:
           // LockIn67
           if (!strncmp(str, "LockIn67", 8)) {
-            return (Token){.tok_type=TOKT_LOCKIN67};            
+            return (Token){.tok_type=TOKT_LOCKIN67, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         case 9:
           // Globalize
           if (!strncmp(str, "Globalize", 9)) {
-            return (Token){.tok_type=TOKT_GLOBALIZE};            
+            return (Token){.tok_type=TOKT_GLOBALIZE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }
         default:
-           ret_func: return (Token){.tok_type=TOKT_FUNCTION, .data.string = {.ptr = str, id_sz} };           
+           ret_func: return (Token){.tok_type=TOKT_FUNCTION, .data.string = {.ptr = str, id_sz}, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};           
       }
     } else if (isdigit(c)) {
       size_t int_sz = lexer_find_integer_size(lexer); 
@@ -363,18 +370,18 @@ Token lexer_tokenize(struct Lexer* const lexer) {
       int64_t val = atoll(lexer_get_ptr(lexer));
       if (c != '0' && val == 0) {
         fprintf(stderr, "Lexer: First digit of a positive integer that is not 0 cannot be 0 (illegal token)\n");
-        return (Token){.tok_type=TOKT_ILLEGAL};
+        return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       }
       if (lexer_peek(lexer, int_sz) == 'u') {
         lexer_nextn(lexer, int_sz+1);
-        return (Token){.tok_type=TOKT_UINT, .data.uinteger = val};
+        return (Token){.tok_type=TOKT_UINT, .data.uinteger = val, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       } else {
         lexer_nextn(lexer, int_sz);
-        return (Token){.tok_type=TOKT_INT, .data.integer = val};
+        return (Token){.tok_type=TOKT_INT, .data.integer = val, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
       }
     }
     fprintf(stderr, "Lexer: could not tokenize (illegal token)\n");
-    return (Token){.tok_type=TOKT_ILLEGAL};
+    return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
 }
 
 
@@ -387,7 +394,10 @@ int lexer_tokenize_all(struct Lexer* const lexer, struct TokenStack* const stack
     res = token_stack_pusha(stack, t);
     if (res) { return 2; }
   }
-  if (t.tok_type == TOKT_ILLEGAL) { return 3; }
+  if (t.tok_type == TOKT_ILLEGAL) {
+    fprintf(stderr, "Illegal token @%d:%d\n", t.line, t.col);
+    return 3;
+  }
   return 0;
 }
 

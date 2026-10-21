@@ -24,6 +24,15 @@ int astnode_stack_create(struct ASTNodeStack* const stack, const size_t initial_
 
 int astnode_stack_destroy(struct ASTNodeStack* const stack) {
   if (stack->nodes == NULL) { return 1; }
+  for (size_t i = 0; i<stack->occupied; ++i) {
+    switch (stack->nodes[i].node_type) {
+      case ASTN_FUNCTION_DECL:
+        variable_table_destroy(stack->nodes[i].u.function_decl.local_variables);
+        break;
+      default:
+        break;
+    }
+  }
   free(stack->nodes);
   stack->nodes = NULL;
   stack->size = 0;
@@ -98,6 +107,14 @@ struct Parser parser_create(struct TokenStack* const token_stack, struct ASTNode
 
 }
 
+void parser_destroy(struct Parser* const parser) {
+  parser->loop_counter = 0;
+  parser->next_pos = 0;
+  parser->current_loop_id = 0;
+  variable_table_destroy(parser->global_variable_table);
+  parser->local_variable_table = NULL;
+}
+
 Token parser_next(struct Parser* const parser) {
   assert(parser != NULL);
   assert(parser->tok_stack != NULL);
@@ -123,7 +140,6 @@ bool parser_is_end(struct Parser* const parser) {
 
 
 int parse_integer(struct Parser* const parser) {
-  printf("# parse_integer\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
   ASTNode node;
@@ -132,6 +148,7 @@ int parse_integer(struct Parser* const parser) {
   } else if (t.tok_type == TOKT_INT) {
     node = (ASTNode){.node_type = ASTN_INT, .u.integer = t.data.integer};
   } else {
+    fprintf(stderr, "Expected integer @%d:%d\n", t.line, t.col);
     return -1;
   }
   int res = astnode_stack_pusha(parser->stack, node);
@@ -142,13 +159,13 @@ int parse_integer(struct Parser* const parser) {
 }
 
 int parse_variable(struct Parser* const parser) {
-  printf("# parse_variable\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
   ASTNode node;
   if (t.tok_type == TOKT_VAR) {
     node = (ASTNode){.node_type = ASTN_VAR, .u = {.var.name = {.ptr = t.data.string.ptr, .len = t.data.string.length}}};
   } else {
+    fprintf(stderr, "Expected variable identifier @%d:%d\n", t.line, t.col);
     return -1;
   }
   int res = astnode_stack_pusha(parser->stack, node);
@@ -159,13 +176,15 @@ int parse_variable(struct Parser* const parser) {
 }
 
 int parse_throw(struct Parser* const parser) {
-  printf("# parse_throw\n");
   assert(parser != NULL);
-  if (parser_next(parser).tok_type != TOKT_THROW) {
+  Token t = parser_next(parser);
+  if (t.tok_type != TOKT_THROW) {
+    fprintf(stderr, "Expected keyword \"Throw\" @%d:%d\n", t.line, t.col);
     return -1;
   }
   int value_node_idx = -1;
-  switch (parser_peek(parser).tok_type) {
+  t = parser_peek(parser);
+  switch (t.tok_type) {
     case TOKT_UINT:
     case TOKT_INT:
       value_node_idx = parse_integer(parser);
@@ -174,6 +193,7 @@ int parse_throw(struct Parser* const parser) {
       value_node_idx = parse_variable(parser);
       break;
     default:
+      fprintf(stderr, "Expected variable identifier or integer after Throw @%d:%d\n", t.line, t.col);
       return -1;
   }
   if (value_node_idx == -1 ) { return -1; }
@@ -184,10 +204,11 @@ int parse_throw(struct Parser* const parser) {
 }
 
 int parse_yap(struct Parser* const parser) {
-  printf("# parse_yap\n");
   assert(parser != NULL);
-  enum tok_type_e tokt = parser_next(parser).tok_type;
+  Token t = parser_next(parser);
+  enum tok_type_e tokt = t.tok_type;
   if (tokt != TOKT_YAP && tokt != TOKT_YAP67) {
+    fprintf(stderr, "Expected keyword \"Yap\" or \"Yap67\" @%d:%d\n", t.line, t.col);
     return -1;
   }
   int value_node_idx = -1;
@@ -200,6 +221,7 @@ int parse_yap(struct Parser* const parser) {
       value_node_idx = parse_variable(parser);
       break;
     default:
+      fprintf(stderr, "Expected variable identifier or integer after Yap/Yap67 @%d:%d\n", t.line, t.col);
       return -1;
   }
   if (value_node_idx == -1) { return -1; }
@@ -210,13 +232,16 @@ int parse_yap(struct Parser* const parser) {
 }
 
 int parse_lockin(struct Parser* const parser) {
-  printf("# parse_lockin\n");
   assert(parser != NULL);
-  enum tok_type_e tokt = parser_next(parser).tok_type;
+  Token t = parser_next(parser);
+  enum tok_type_e tokt = t.tok_type;
   if (tokt != TOKT_LOCKIN && tokt != TOKT_LOCKIN67) {
+    fprintf(stderr, "Expected keyword \"LockIn\" or \"LockIn67\" @%d:%d\n", t.line, t.col);
     return -1;
   }
-  if (parser_peek(parser).tok_type != TOKT_VAR) {
+  t = parser_peek(parser);
+  if (t.tok_type != TOKT_VAR) {
+    fprintf(stderr, "Expected variable identifier after LockIn/LockIn67 @%d:%d\n", t.line, t.col);
     return -1;
   }
   int var_idx = parse_variable(parser);
@@ -246,14 +271,17 @@ int parse_variable_declaration(struct Parser* const parser, const bool is_local)
       dt = DT_SQUAD;
       break;
     default:
+      fprintf(stderr, "Expected type @%d:%d\n", t.line, t.col);
       return -1;
   }
   t = parser_next(parser);
   if (t.tok_type != TOKT_VAR) {
+    fprintf(stderr, "Expected variable identifier after type @%d:%d\n", t.line, t.col);
     return -1;
   }
 
   if (!is_local && parser_next(parser).tok_type != TOKT_SEMICOLON) {
+    fprintf(stderr, "Expected semicolon @%d:%d\n", t.line, t.col);
     return -1;
   }
   variable_table_insert(is_local ? parser->local_variable_table : &parser->global_variable_table, t.data.string.ptr, t.data.string.length, dt);
@@ -264,7 +292,6 @@ int parse_variable_declaration(struct Parser* const parser, const bool is_local)
 }
 
 int parse_single_argument(struct Parser* const parser, size_t* const stack_usage, bool count_stack) {
-  printf("# parse_single_argument\n");
   assert(parser != NULL);
   int node_idx = -1;
   Token t = parser_peek(parser);
@@ -284,6 +311,7 @@ int parse_single_argument(struct Parser* const parser, size_t* const stack_usage
       }
       break;
     default:
+      fprintf(stderr, "Variable or integer as argument @%d:%d\n", t.line, t.col);
       return -1;
   }
   assert(node_idx != -1);
@@ -291,7 +319,6 @@ int parse_single_argument(struct Parser* const parser, size_t* const stack_usage
 }
 
 int parse_arguments(struct Parser* parser, size_t* const stack_usage, int arg_depth) {
-  printf("# parse_arguments\n");
   assert(parser != NULL);
   if (parser_peek(parser).tok_type == TOKT_RPAREN) {
     return -1;
@@ -319,14 +346,17 @@ int parse_arguments(struct Parser* parser, size_t* const stack_usage, int arg_de
 }
 
 int parse_function_call(struct Parser* const parser) {
-  printf("# parse_function_call\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
   if (t.tok_type != TOKT_FUNCTION) {
+    fprintf(stderr, "Expected function identifier @%d:%d\n", t.line, t.col);
     return -1;
   }
   ASTNode function_call = {.node_type = ASTN_FUNCTION_CALL, .u.function_call = { .name = { .ptr = t.data.string.ptr, .len = t.data.string.length }, .has_arguments = false, .first_argument_idx = -1, .stack_usage = 0 } };
-  if (parser_next(parser).tok_type != TOKT_LPAREN) { return -1; }
+  if (parser_next(parser).tok_type != TOKT_LPAREN) {
+    fprintf(stderr, "Expected left parentheses after function identifier @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   if (parser_peek(parser).tok_type != TOKT_RPAREN) {
     size_t stack_usage = 0;
     int first_argument_idx = parse_arguments(parser, &stack_usage, 0);
@@ -335,7 +365,10 @@ int parse_function_call(struct Parser* const parser) {
     function_call.u.function_call.first_argument_idx = first_argument_idx;
     function_call.u.function_call.stack_usage = stack_usage;
   }
-  if (parser_next(parser).tok_type != TOKT_RPAREN) { return -1; }
+  if (parser_next(parser).tok_type != TOKT_RPAREN) {
+    fprintf(stderr, "Expected right parentheses @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   int res = astnode_stack_pusha(parser->stack, function_call);
   if (res) { return -1; } 
   return astnode_stack_top_idx(parser->stack);
@@ -344,7 +377,6 @@ int parse_function_call(struct Parser* const parser) {
 int parse_comparison(struct Parser* const parser);
 
 int parse_primary(struct Parser* const parser) {
-  printf("# parse_primary\n");
   Token t = parser_peek(parser);
   switch (t.tok_type) {
     case TOKT_FUNCTION:
@@ -363,12 +395,12 @@ int parse_primary(struct Parser* const parser) {
       parser_next(parser);
       return node;
     default:
+      fprintf(stderr, "Expected primary: variable, integer, function call or parentheses @%d:%d\n", t.line, t.col);
       return -1;
   }
 }
 
 int parse_unary(struct Parser* const parser) {
-  printf("# parse_unary\n");
   int res;
   ast_node_e node_type;
   switch (parser_peek(parser).tok_type) {
@@ -391,7 +423,6 @@ int parse_unary(struct Parser* const parser) {
 
 
 int parse_factor(struct Parser* const parser) {
-  printf("# parse_factor\n");
   const int left_term_idx = parse_unary(parser);
   if (left_term_idx == -1) { return -1; }
 
@@ -418,7 +449,6 @@ int parse_factor(struct Parser* const parser) {
 }
 
 int parse_bitwise(struct Parser* const parser) {
-  printf("# parse_bitwise\n");
   const int left_term_idx = parse_factor(parser);
   if (left_term_idx == -1 ) { return -1; }
 
@@ -445,7 +475,6 @@ int parse_bitwise(struct Parser* const parser) {
 }
 
 int parse_term(struct Parser* const parser) {
-  printf("# parse_term\n");
   const int left_term_idx = parse_bitwise(parser);
   if (left_term_idx == -1 ) { return -1; }
 
@@ -472,7 +501,6 @@ int parse_term(struct Parser* const parser) {
 }
 
 int parse_comparison(struct Parser* const parser) {
-  printf("# parse_comparison\n");
   const int left_term_idx = parse_term(parser);
   if (left_term_idx == -1) { return -1; }
   ast_node_e node_type;
@@ -499,7 +527,6 @@ int parse_comparison(struct Parser* const parser) {
 }
 
 int parse_logical(struct Parser* const parser) {
-  printf("# parse_logical\n");
   const int left_term_idx = parse_comparison(parser);
   if (left_term_idx == -1) { return -1; }
   ast_node_e node_type;
@@ -524,20 +551,24 @@ int parse_logical(struct Parser* const parser) {
 
 
 int parse_expression(struct Parser* const parser) {
-  printf("# parse_expression\n");
   return parse_logical(parser);
 }
 
 int parse_assignment(struct Parser* const parser) {
-  printf("# parse_statement\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
-  if (t.tok_type != TOKT_ASSIGN) { return -1; }
+  if (t.tok_type != TOKT_ASSIGN) {
+    fprintf(stderr, "Expected keyword \"Assign\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   const int expr_node_idx = parse_expression(parser); 
   if (expr_node_idx == -1) { return -1; }
 
   t = parser_next(parser);
-  if (t.tok_type != TOKT_TO) { return -1; }
+  if (t.tok_type != TOKT_TO) {
+    fprintf(stderr, "Expected keyword \"To\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   const int var_node_idx = parse_variable(parser); 
 
   int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_ASSIGNMENT, .u.assign = { .expr_idx = expr_node_idx, .var_idx = var_node_idx }});
@@ -549,17 +580,25 @@ int parse_assignment(struct Parser* const parser) {
 int parse_block(struct Parser* const parser);
 
 int parse_if_else(struct Parser* const parser) {
-  printf("# parse_if_else\n");
   Token t = parser_next(parser);
-  if (t.tok_type != TOKT_IF) { return -1; }
+  if (t.tok_type != TOKT_IF) {
+    fprintf(stderr, "Expected keyword \"If\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   t = parser_peek(parser);
   const int expr_idx = parse_expression(parser);
   if (expr_idx == -1) { return -1; }
   t = parser_next(parser);
-  if (t.tok_type != TOKT_LBRACE) { return -1; }
+  if (t.tok_type != TOKT_LBRACE) {
+    fprintf(stderr, "Expected left brace after keyword \"If\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   const int statements_if_idx = parse_block(parser);
   t = parser_next(parser);
-  if (t.tok_type != TOKT_RBRACE) { return -1; }
+  if (t.tok_type != TOKT_RBRACE) {
+    fprintf(stderr, "Expected right brace @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_IF_ELSE , .u.if_else = { .statements_if_idx = statements_if_idx, .expr_idx = expr_idx, .has_else = false}});
   if (res) { return -1; } 
 
@@ -569,10 +608,16 @@ int parse_if_else(struct Parser* const parser) {
   if (t.tok_type == TOKT_ELSE) {
     parser_next(parser); // Consume ELSE
     t = parser_next(parser);
-    if (t.tok_type != TOKT_LBRACE) { return -1; }
+    if (t.tok_type != TOKT_LBRACE) {
+      fprintf(stderr, "Expected left brace after keyword \"Else\" @%d:%d\n", t.line, t.col);
+      return -1;
+    }
     const int statements_else_idx = parse_block(parser);
     t = parser_next(parser);
-    if (t.tok_type != TOKT_RBRACE) { return -1; }
+    if (t.tok_type != TOKT_RBRACE) {
+      fprintf(stderr, "Expected right brace @%d:%d\n", t.line, t.col);
+      return -1;
+    }
     t = parser_peek(parser);
     ASTNode* const node = astnode_stack_get_node(parser->stack, node_idx);
     assert(node != NULL);
@@ -584,16 +629,24 @@ int parse_if_else(struct Parser* const parser) {
 }
 
 int parse_loop(struct Parser* const parser) {
-  printf("# parse_loop\n");
   Token t = parser_next(parser);
-  if (t.tok_type != TOKT_LOOP) { return -1; }
+  if (t.tok_type != TOKT_LOOP) {
+    fprintf(stderr, "Expected keyword \"Loop\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   t = parser_next(parser);
-  if (t.tok_type != TOKT_LBRACE) { return -1; }
+  if (t.tok_type != TOKT_LBRACE) {
+    fprintf(stderr, "Expected left brace after keyword \"Loop\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   int previous_loop_id = parser->current_loop_id;
   parser->current_loop_id = parser->loop_counter++;
   const int first_statement_idx = parse_block(parser);
   t = parser_next(parser);
-  if (t.tok_type != TOKT_RBRACE) { return -1; }
+  if (t.tok_type != TOKT_RBRACE) {
+    fprintf(stderr, "Expected right brace @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   int res = astnode_stack_pusha(parser->stack, (ASTNode){.node_type = ASTN_LOOP, .u.loop = {.first_statement_idx = first_statement_idx, .loop_id = parser->current_loop_id}});
   parser->current_loop_id = previous_loop_id;
   if (res) { return -1; } 
@@ -603,9 +656,10 @@ int parse_loop(struct Parser* const parser) {
 }
 
 int parse_break(struct Parser* const parser) {
-  printf("# parse_break\n");
   assert(parser != NULL);
-  if (parser_next(parser).tok_type != TOKT_BREAK) {
+  Token t = parser_next(parser);
+  if (t.tok_type != TOKT_BREAK) {
+    fprintf(stderr, "Expected keyword \"Break\" @%d:%d\n", t.line, t.col);
     return -1;
   }
   assert(parser->current_loop_id != -1);
@@ -617,7 +671,6 @@ int parse_break(struct Parser* const parser) {
 
 
 int parse_statement(struct Parser* const parser) {
-  printf("# parse_statement\n");
   assert(parser != NULL);
   int node_idx = -1;
   Token t = parser_peek(parser);
@@ -637,7 +690,6 @@ int parse_statement(struct Parser* const parser) {
     case TOKT_SBYTE:
     case TOKT_UQUAD:
     case TOKT_SQUAD:
-      // TODO: Add local variable declarations
       node_idx = parse_variable_declaration(parser, true);
       break;
     case TOKT_ASSIGN:
@@ -656,6 +708,7 @@ int parse_statement(struct Parser* const parser) {
       node_idx = parse_function_call(parser);
       break;
     default:
+      fprintf(stderr, "Invalid statement @%d:%d\n", t.line, t.col);
       return -1;
   }
   t = parser_next(parser);
@@ -667,12 +720,12 @@ int parse_statement(struct Parser* const parser) {
 }
 
 int parse_block(struct Parser* const parser) {
-  printf("# parse_block\n");
   assert(parser != NULL);
   if (parser_peek(parser).tok_type == TOKT_RBRACE) {
     return -1;
   } else if (parser_is_end(parser)) {
-    return -1; // ERROR, Parser should not be end without right brace
+    fprintf(stderr, "Expected right brace before EOF\n");
+    return -1; 
   } else  {
     const int current_idx = parse_statement(parser); 
     assert(current_idx != -1);
@@ -717,11 +770,12 @@ int parse_parameters(struct Parser* const parser, struct VariableTable* paramete
         dt = DT_SQUAD;
         break;
       default:
+        fprintf(stderr, "Expected type @%d:%d\n", t.line, t.col);
         return -1;
     }
     t = parser_next(parser);
     if (t.tok_type != TOKT_VAR) {
-      fprintf(stderr, "Parser: Expected token type variable after type in parameter, got token type %d instead\n", t.tok_type);
+      fprintf(stderr, "Expected variable identifier after type @%d:%d\n", t.line, t.col);
       return -1;
     }
     variable_table_insert(parameters, t.data.string.ptr, t.data.string.length, dt);
@@ -731,12 +785,17 @@ int parse_parameters(struct Parser* const parser, struct VariableTable* paramete
 }
 
 int parse_function_declaration(struct Parser* const parser) {
-  printf("# parse_function_decl\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
-  if (t.tok_type != TOKT_FUN) { return -1; }
+  if (t.tok_type != TOKT_FUN) {
+    fprintf(stderr, "Expected keyword \"Fun\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   t = parser_next(parser);
-  if (t.tok_type != TOKT_FUNCTION) { return -1; }
+  if (t.tok_type != TOKT_FUNCTION) {
+    fprintf(stderr, "Expected function identifier after keyword \"Fun\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   ASTNode function = {.node_type = ASTN_FUNCTION_DECL, .u.function_decl = { .name = {.ptr = t.data.string.ptr, .len = t.data.string.length }, .has_parameters = false}};
   if (parser_next(parser).tok_type != TOKT_LPAREN) { return -1; }
   if (parser_peek(parser).tok_type != TOKT_RPAREN) {
@@ -770,6 +829,7 @@ int parse_function_declaration(struct Parser* const parser) {
       function.u.function_decl.return_type = DT_VOID;
       goto skip_lbrace;
     default:
+      fprintf(stderr, "Expected type or left brace @%d:%d\n", t.line, t.col);
       goto fail;
   }
   if (parser_next(parser).tok_type != TOKT_LBRACE) {
@@ -782,11 +842,12 @@ int parse_function_declaration(struct Parser* const parser) {
   const int block_idx = parse_block(parser); 
   // The block can only be empty if it is a void function
   if (block_idx == -1 && function.u.function_decl.return_type != DT_VOID) {
+    fprintf(stderr, "Expected atleast 1 statement in non-void function @%d:%d\n", t.line, t.col);
     goto fail_with_locals;
   }
   t = parser_next(parser);
   if (t.tok_type != TOKT_RBRACE) {
-
+    fprintf(stderr, "Expected right brace @%d:%d\n", t.line, t.col);
     goto fail_with_locals;
   }
   function.u.function_decl.first_statement_idx = block_idx;
@@ -807,12 +868,17 @@ int parse_function_declaration(struct Parser* const parser) {
 
 
 int parse_globalization_declaration(struct Parser* const parser) {
-  printf("# parse_globalization_declaration\n");
   assert(parser != NULL);
   Token t = parser_next(parser);
-  if (t.tok_type != TOKT_GLOBALIZE) { return -1; }
+  if (t.tok_type != TOKT_GLOBALIZE) {
+    fprintf(stderr, "Expected keyword \"Globalize\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   t = parser_next(parser);
-  if (t.tok_type != TOKT_FUNCTION) { return -1; }
+  if (t.tok_type != TOKT_FUNCTION) {
+    fprintf(stderr, "Expected function identifier after keyword \"Globalize\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   ASTNode globalization_decl = {.node_type = ASTN_GLOBL_DECL, .u.globl_decl = { .function_name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
   t = parser_next(parser);
   if (t.tok_type != TOKT_GLOBAL_IDENTIFIER) { return -1; }
@@ -825,7 +891,6 @@ int parse_globalization_declaration(struct Parser* const parser) {
 }
 
 int parse_top_level_declaration(struct Parser* const parser) {
-  printf("# parse_top_level_declaration\n");
   assert(parser != NULL);
   int node_idx = -1;
   Token t = parser_peek(parser);
@@ -843,6 +908,7 @@ int parse_top_level_declaration(struct Parser* const parser) {
       node_idx = parse_function_declaration(parser);
       break;
     default:
+      fprintf(stderr, "Invalid top level declaration @%d:%d\n", t.line, t.col);
       return -1;
   }
   assert(node_idx != -1);
@@ -850,7 +916,6 @@ int parse_top_level_declaration(struct Parser* const parser) {
 }
 
 int parse_top(struct Parser* const parser) {
-  printf("# parse_top\n");
   assert(parser != NULL);
   if (parser_is_end(parser)) {
     return -1; // End of file, no more declarations 

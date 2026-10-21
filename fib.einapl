@@ -1,0 +1,22 @@
+Fun entry-point() Squad {
+  Uquad $target-number; 
+  Uquad $counter; 
+  Uquad $n2; 
+  Uquad $n1; 
+  Uquad $swap; 
+  LockIn67 $target-number;
+  Assign 1 To $n1;
+  Assign 1 To $n2;
+  Assign 2 To $counter;
+  Loop {
+    If $counter = $target-number {
+      Break;
+    };
+    Assign $counter + 1 To $counter;
+    Assign $n2 To $swap;
+    Assign $n2+$n1 To $n2;
+    Assign $swap To $n1;
+  };
+  Yap67 $n2;
+  Throw 0;
+}
