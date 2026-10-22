@@ -9,7 +9,7 @@
 <variable-decl> ::= <type> <variable>
 <globalization-decl> ::= "Globalize" <identifier> <global-identifier>
 <block> ::= <statement>*
-<statement> ::= ( <function-call> | <yap> | <lockin> | <if-else> | <loop> | <throw> | <var-decl> | <assignment> | "Break" ) ";"
+<statement> ::= ( <function-call> | <yap> | <lockin> | <if-else> | <loop> | <throw> | <variable-decl> | <assignment> | "Break" ) ";"
 <assignment> ::= "Assign" <expression> "To" <variable>
 <if-else> ::= "If" <expression> "{" <block> "}" \[ "Else" "{" <block> "}" \]
 <loop> ::= "Loop" "{" <block> "}"
@@ -21,7 +21,7 @@
 <term> ::= <bitwise> ("+" | "_" | "Mod") <term>
 <bitwise> ::= <factor> ("&" | "|" | "^") <bitwise>
 <factor> ::= <unary> ("\*" | "/" | "//") <factor>
-<unary> ::= ("!" | "\~") <primary>
+<unary> ::= ["!" | "\~"] <primary>
 <primary> ::= "(" <expression> ")" | <function-call> | <variable> | <integer-literal> | <char-literal>   
 <function-call> ::= <identifier> "(" <argument>* ")"
 <argument> ::= <variable> | <char-literal> | <integer-literal>
