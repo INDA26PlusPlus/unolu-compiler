@@ -3,7 +3,14 @@
 #include "src/parser.h"
 #include "src/symbols.h"
 
-#define CODEGEN_FUNCTION_RESERVED_STACK_SPACE 24
+/*
+Offset from function frame start (rbp)
+0x0: return address (written by call instruction)
+-0x8: saved rbp (written at the start of function) 
+-0x10: saved rsp (written at the start of function) 
+-0x18: saved current (possibly unaligned) rsp (written before function call, before the aligning andq instruction) 
+*/
+#define CODEGEN_FUNCTION_RESERVED_STACK_SPACE 32
 
 #define CODEGEN_FUNCTION_PREFIX "EINAPL_FUNCTION_"
 #define CODEGEN_GLOBAL_VARIABLE_ORIGIN_LABEL "EINAPL_GLOBAL_VARIABLES"
