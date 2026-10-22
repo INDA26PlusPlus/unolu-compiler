@@ -250,13 +250,8 @@ Token lexer_tokenize(struct Lexer* const lexer) {
             fprintf(stderr, "Lexer: First digit of a negative number cannot be 0 (illegal token)\n");
             return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
           }
-          if (lexer_peek(lexer, int_sz) == 'u') {
-            lexer_nextn(lexer, int_sz+1);
-            return (Token){.tok_type=TOKT_UINT, .data.uinteger = int_sz, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
-          } else {
-            lexer_nextn(lexer, int_sz);
-            return (Token){.tok_type=TOKT_INT, .data.integer = int_sz, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
-          } 
+          lexer_nextn(lexer, int_sz);
+          return (Token){.tok_type=TOKT_INT, .data.integer = -1*val, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};
         } else {
           fprintf(stderr, "Lexer: Integer expected after \'-\' (illegal token)\n");
           return (Token){.tok_type=TOKT_ILLEGAL, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};

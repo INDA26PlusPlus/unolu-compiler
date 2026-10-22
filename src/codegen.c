@@ -324,6 +324,7 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
   codegen_gen_expression(file, right, node_stack, st);
   fputs("pop %r10\npop %r11\n", file);
   switch (binop->node_type) {
+    // Addition and subtraction works the same for both signed and unsigned integers.
     case ASTN_ADD:
       fputs("addl %r10d, %r11d\n", file);
       break;
