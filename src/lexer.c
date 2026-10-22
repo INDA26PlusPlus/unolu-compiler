@@ -173,6 +173,14 @@ Token lexer_tokenize(struct Lexer* const lexer) {
   const char c = lexer_current_character(lexer);
   size_t start, id_sz;
   switch (c) {
+      case '@':
+        while (lexer_current_character(lexer) != '\n') {
+          lexer_next(lexer);
+        }
+        lexer_next(lexer);
+        ++lexer->line_count;
+        lexer->line_start = lexer->current_pos + 1;
+        return lexer_tokenize(lexer);
       case '!':
         ++lexer->current_pos;
         return (Token){.tok_type=TOKT_LOGNOT, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};

@@ -50,6 +50,7 @@
 
 ## Additional Language Notes
 * Signed division uses "/" and unsigned division uses "//"
+* Comments are single line and start with "@"
 
 
 ## Areas of Improvement
