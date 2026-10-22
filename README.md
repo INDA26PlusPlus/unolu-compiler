@@ -52,12 +52,9 @@
 * Signed division uses "/" and unsigned division uses "//"
 * Comments are single line and start with "@"
 
-
-## Areas of Improvement
-* Make all the stack implementations into one.
-* Implement a assembly peephole optimizer.
-
 ## Example usage
 To calculate a fibonacci number you can compile `fib.einapl` with the command `einaplc fib.einapl -o fib`.
 Executing `./fib` will prompt you to enter a number n, the program with then print the nth fibonacci number.
 
+## Compiling
+If you have Nim and libpcre installed then you compile with the peephole optimizer. This is turned on by default.

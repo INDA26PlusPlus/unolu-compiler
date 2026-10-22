@@ -5,12 +5,17 @@
 #include "src/lexer.h"
 #include "src/parser.h"
 #include "src/codegen.h"
+#ifdef POPTIMIZER
+#include "src/popt.h"
+#endif
 
 struct Arguments {
   char* input_path;
   char* output_path;
   bool help;
+  #ifdef POPTIMIZER
   bool optimize;
+  #endif
   bool object;
   bool assembly;
 };
@@ -42,7 +47,12 @@ int handle_arguments(struct Arguments* const args, const int argc, char** const 
       if (IS_FLAG("h", "help", arg_str)) {
         args->help = true;
       } else if (IS_FLAG("P", "peep-optimize", arg_str)) {
+        #ifdef POPTIMIZER
         args->optimize = true;
+        #else
+        perror("Peephole optimizer is not on\n");
+        return 1;
+        #endif
       } else if (IS_FLAG("O", "object", arg_str)) {
         args->object = true;
       } else if (IS_FLAG("a", "assembly", arg_str)) {
@@ -84,12 +94,17 @@ int main(int argc, char* argv[]) {
     .help = false,
     .assembly = false,
     .object = false,
+    #ifdef POPTIMIZER
     .optimize = false,
+    #endif
   };
   int res = handle_arguments(&args, argc, argv);
   if (res) { return 1; }
   if (args.help) {
     fputs(HELP_TEXT, stdout);
+    #ifndef POPTIMIZER
+    fputs("Peephole optimizer is available\n", stdout);
+    #endif
     return 0;
   }
   if (args.input_path == NULL) {
@@ -222,6 +237,12 @@ int main(int argc, char* argv[]) {
   // Input file buffer has to be freed after code generation since pointers to it exist in AST nodes
   fclose(input_file);
   fclose(assembly_file);
+
+  #ifdef POPTIMIZER
+  if (args.optimize) {
+    poptimize(assembly_file_name);
+  }
+  #endif
   if (!args.assembly) {
     size_t current_buf_offset = sizeof("gcc ") - 1;
     strncpy(input_file_buffer, "gcc ", sizeof("gcc "));
