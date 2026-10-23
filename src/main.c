@@ -251,8 +251,8 @@ int main(int argc, char* argv[]) {
       ++current_buf_offset;
     }
     if (args.object) {
-      strncpy(&input_file_buffer[current_buf_offset], " -C ", sizeof(" -C "));
-      current_buf_offset += sizeof(" -C ") - 1;
+      strncpy(&input_file_buffer[current_buf_offset], " -c ", sizeof(" -c "));
+      current_buf_offset += sizeof(" -c ") - 1;
     }
     strncpy(&input_file_buffer[current_buf_offset], " -o ", sizeof(" -o "));
     current_buf_offset += sizeof(" -o ") - 1;
