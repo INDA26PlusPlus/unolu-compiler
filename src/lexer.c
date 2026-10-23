@@ -36,8 +36,6 @@ int token_stack_pusha(struct TokenStack* const stack, const Token token) {
 
   if (stack->occupied == stack->size) {
     const size_t new_size = TOKEN_STACK_REALLOC_POLICY(stack->size);
-    //void* const new_alloc = realloc(stack->tokens, new_size);
-    //if (new_alloc == NULL) { return 2; }
     Token* const new_alloc = (Token*)malloc(new_size*sizeof(Token));
     if (new_alloc == NULL) { return 2; }
 
@@ -351,9 +349,11 @@ Token lexer_tokenize(struct Lexer* const lexer) {
             goto ret_func;
           }
         case 8:
-          // LockIn67
+          // LockIn67, Localize
           if (!strncmp(str, "LockIn67", 8)) {
             return (Token){.tok_type=TOKT_LOCKIN67, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
+          } else if (!strncmp(str, "Localize", 8)) {
+            return (Token){.tok_type=TOKT_LOCALIZE, .col = lexer->current_pos - lexer->line_start, .line = lexer->line_count};            
           } else {
             goto ret_func;
           }

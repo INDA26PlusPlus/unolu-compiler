@@ -20,6 +20,7 @@ typedef enum {
   ASTN_VAR,
   ASTN_ASSIGNMENT,
   ASTN_UDIV,
+  ASTN_LOCAL_DECL,
   ASTN_IDIV,
   ASTN_MOD,
   ASTN_LOGNOT,
@@ -102,6 +103,17 @@ struct ASTNode {
         size_t len;
       } global_name;
     } globl_decl;
+    struct {
+      enum datatype_e type;
+      struct {
+        const char* ptr; 
+        size_t len;
+      } function_name;
+      struct {
+        const char* ptr; 
+        size_t len;
+      } global_name;
+    } local_decl;
     struct {
       int expr_idx;
       int var_idx;

@@ -866,6 +866,36 @@ int parse_function_declaration(struct Parser* const parser) {
   return -1;
 }
 
+int parse_localization_declaration(struct Parser* const parser) {
+  assert(parser != NULL);
+  Token t = parser_next(parser);
+  if (t.tok_type != TOKT_LOCALIZE) {
+    fprintf(stderr, "Expected keyword \"Localize\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
+  t = parser_next(parser);
+  if (t.tok_type != TOKT_GLOBAL_IDENTIFIER) {
+    fprintf(stderr, "Expected global identifier after keyword \"Localize\" @%d:%d\n", t.line, t.col);
+    return -1;
+  }
+  ASTNode localization_decl = {.node_type = ASTN_LOCAL_DECL, .u.local_decl = { .global_name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
+  t = parser_next(parser);
+  if (t.tok_type != TOKT_FUNCTION) {
+    if (t.tok_type == TOKT_MINUS) {
+      // Helpful hint
+      fprintf(stderr, "Expected function identifier after global identifier (global identifiers may only contain letters) @%d:%d\n", t.line, t.col);
+    } else {
+      fprintf(stderr, "Expected function identifier after global identifier @%d:%d\n", t.line, t.col);
+    }
+    return -1;
+  }
+  localization_decl.u.local_decl.function_name.ptr = t.data.string.ptr;
+  localization_decl.u.local_decl.function_name.len = t.data.string.length;
+  if (parser_next(parser).tok_type != TOKT_SEMICOLON) { return -1; }
+  int res = astnode_stack_pusha(parser->stack, localization_decl);
+  if (res) { return -1; } 
+  return astnode_stack_top_idx(parser->stack);
+}
 
 int parse_globalization_declaration(struct Parser* const parser) {
   assert(parser != NULL);
@@ -881,7 +911,10 @@ int parse_globalization_declaration(struct Parser* const parser) {
   }
   ASTNode globalization_decl = {.node_type = ASTN_GLOBL_DECL, .u.globl_decl = { .function_name = {.ptr = t.data.string.ptr, .len = t.data.string.length }}};
   t = parser_next(parser);
-  if (t.tok_type != TOKT_GLOBAL_IDENTIFIER) { return -1; }
+  if (t.tok_type != TOKT_GLOBAL_IDENTIFIER) {
+    fprintf(stderr, "Expected global identifier after function identifier @%d:%d\n", t.line, t.col);
+    return -1;
+  }
   globalization_decl.u.globl_decl.global_name.ptr = t.data.string.ptr;
   globalization_decl.u.globl_decl.global_name.len = t.data.string.length;
   if (parser_next(parser).tok_type != TOKT_SEMICOLON) { return -1; }
@@ -897,6 +930,9 @@ int parse_top_level_declaration(struct Parser* const parser) {
   switch (t.tok_type) {
     case TOKT_GLOBALIZE:
       node_idx = parse_globalization_declaration(parser);
+      break;
+    case TOKT_LOCALIZE:
+      node_idx = parse_localization_declaration(parser);
       break;
     case TOKT_UBYTE:
     case TOKT_SBYTE:

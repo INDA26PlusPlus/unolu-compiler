@@ -3,11 +3,12 @@
 
 ## Syntax
 ```
-<top-level-decl> ::= ( ( <variable-decl> ";" ) | <function-decl> | ( <globalization-decl> ";" ) ) \[<top-level-decl>\]
+<top-level-decl> ::= ( ( <variable-decl> ";" ) | <function-decl> | ( <globalization-decl> ";" ) | ( <localization-decl> ";" ) ) \[<top-level-decl>\]
 <function-decl> ::= "Fun" <identifier> "(" <parameter>* ")" \[<type>\] "{" <block> "}"
 <parameter> ::= <type> <variable>
 <variable-decl> ::= <type> <variable>
 <globalization-decl> ::= "Globalize" <identifier> <global-identifier>
+<localization-decl> ::= "Localize" <global-identifier> <identifier> 
 <block> ::= <statement>*
 <statement> ::= ( <function-call> | <yap> | <lockin> | <if-else> | <loop> | <throw> | <variable-decl> | <assignment> | "Break" ) ";"
 <assignment> ::= "Assign" <expression> "To" <variable>
@@ -35,6 +36,11 @@
 <digit> ::= \["0"-"9"\]
 <char-literal> ::= "'" <ascii-character> "'"
 ```
+
+## Features
+* Implements System V calling convention (in its most basic form).
+* Interoperability with C
+* x86 peephole optimizer
 
 ## Semantics
 * In expressions, all operations are 32 bit, they can still be saved to 8 bit variables through.

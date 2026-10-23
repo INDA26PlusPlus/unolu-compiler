@@ -666,6 +666,21 @@ int codegen_gen_globalization_decl(FILE* const file, ASTNode* const globalizatio
   return 0;
 }
 
+int codegen_gen_localization_decl(FILE* const file, ASTNode* const localization_decl, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
+  (void)node_stack;
+  (void)st;
+  assert(localization_decl != NULL);
+  if (localization_decl->node_type != ASTN_LOCAL_DECL) { return 1; }
+  assert (localization_decl->u.local_decl.function_name.ptr != NULL);
+  assert (localization_decl->u.local_decl.function_name.len != 0);
+  assert (localization_decl->u.local_decl.global_name.ptr != NULL);
+  assert (localization_decl->u.local_decl.global_name.len != 0);
+  fprintf(file, ".extern %.*s\n.text\n", (int)localization_decl->u.local_decl.global_name.len, localization_decl->u.local_decl.global_name.ptr);
+  fprintf(file, CODEGEN_FUNCTION_PREFIX"%.*s:\n", (int)localization_decl->u.local_decl.function_name.len, localization_decl->u.local_decl.function_name.ptr);
+  fprintf(file, "jmp %.*s\n\n", (int)localization_decl->u.local_decl.global_name.len, localization_decl->u.local_decl.global_name.ptr);
+  return 0;
+}
+
 int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   if (top_decl == NULL) {
     return 0;
@@ -680,6 +695,9 @@ int codegen_gen_top_level_declaration(FILE* const file, ASTNode* const top_decl,
         return 0;
       case ASTN_GLOBL_DECL:
         res = codegen_gen_globalization_decl(file, top_decl, node_stack, st);
+        return res;
+      case ASTN_LOCAL_DECL:
+        res = codegen_gen_localization_decl(file, top_decl, node_stack, st);
         return res;
       default:
         fprintf(stderr, "Codegen: Unexpected node type (%d) for top level declaration\n", top_decl->node_type);
