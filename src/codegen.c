@@ -36,29 +36,16 @@ enum datatype_e codegen_gen_variable(FILE* const file, const char* const name_pt
   return var->type;
 }
 
-// Assumes either function decl or function call
-void codegen_gen_function_identifier(FILE* const file, ASTNode* const function) {
-  assert(function->node_type == ASTN_FUNCTION_CALL || function->node_type == ASTN_FUNCTION_DECL);
+void codegen_gen_function_identifier_from_string(FILE* const file, const char* const name, const size_t len) {
   fputs(CODEGEN_FUNCTION_PREFIX, file);
-  if (function->node_type == ASTN_FUNCTION_CALL) {
-    for (size_t i = 0; i<function->u.function_call.name.len; ++i) {
-      if (function->u.function_call.name.ptr[i] == '-') {
-        fputc('_', file);
-      } else {
-        fputc(function->u.function_call.name.ptr[i], file);
-      }
-    }
-  } else {
-    for (size_t i = 0; i<function->u.function_decl.name.len; ++i) {
-      if (function->u.function_decl.name.ptr[i] == '-') {
-        fputc('_', file);
-      } else {
-        fputc(function->u.function_decl.name.ptr[i], file);
-      }
+  for (size_t i = 0; i<len; ++i) {
+    if (name[i] == '-') {
+      fputc('_', file);
+    } else {
+      fputc(name[i], file);
     }
   }
 }
-
 int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStack* const node_stack, const struct SymbolTable st) {
   assert(throw != NULL);
   if (throw->u.throw.value_idx != -1) {
@@ -76,7 +63,10 @@ int codegen_gen_throw(FILE* const file, ASTNode* const throw, struct ASTNodeStac
         assert(value != NULL);
         assert(value->u.var.name.ptr != NULL);
         enum datatype_e type = codegen_gen_variable(file, value->u.var.name.ptr, value->u.var.name.len, st);
-        if (type == DT_VOID) { return 1; } 
+        if (type == DT_VOID) {
+          fprintf(stderr, "Codegen: Variable datatype cannot be void for throw\n");
+          return 1;
+        } 
         break;
       default:
         return 2;
@@ -92,6 +82,7 @@ int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* c
   assert(yap!= NULL);
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
+    fprintf(stderr, "Codegen: Value cannot be null for yap\n");
     return 1;
   } 
   fputs("movl ", file);
@@ -107,8 +98,13 @@ int codegen_gen_yap(FILE* const file, ASTNode* const yap, struct ASTNodeStack* c
      // Should be fine, internaly the int passed to putchar is converted to a unsigned char
      // If variables are packed then maybe unaligned access might be a problem
      enum datatype_e res = codegen_gen_variable(file, value->u.var.name.ptr, value->u.var.name.len, st);
-     if (res == DT_VOID) { return 2; }
+     if (res == DT_VOID) {
+       fprintf(stderr, "Codegen: Variable datatype cannot be void for yap\n");
+       return 2;
+     }
+     break;
     default:
+     fprintf(stderr, "Codegen: Expected integer or variable for yap, got node type %d\n", value->node_type);
      return 3;
   }
   fputs(", %edi\ncall putchar\n", file);
@@ -119,6 +115,7 @@ int codegen_gen_yap67(FILE* const file, ASTNode* const yap, struct ASTNodeStack*
   assert(yap!= NULL);
   ASTNode* const value = astnode_stack_get_node(node_stack, yap->u.yap.value_idx);
   if (value == NULL) {
+    fprintf(stderr, "Codegen: Value cannot be null for yap67\n");
     return 1;
   } 
   enum datatype_e type;
@@ -135,7 +132,10 @@ int codegen_gen_yap67(FILE* const file, ASTNode* const yap, struct ASTNodeStack*
    case ASTN_VAR:
      ;
      type = codegen_gen_variable(file, value->u.var.name.ptr, value->u.var.name.len, st);
-     if (type == DT_VOID) { return 2; }
+     if (type == DT_VOID) {
+       fprintf(stderr, "Codegen: Variable datatype cannot be void for yap67\n");
+       return 2;
+     }
      break;
     default:
      return 3;
@@ -161,15 +161,18 @@ int codegen_gen_lockin(FILE* const file, ASTNode* const lockin, struct ASTNodeSt
   assert(lockin!= NULL);
   ASTNode* const var_node = astnode_stack_get_node(node_stack, lockin->u.lockin.var_idx);
   if (var_node == NULL) {
+    fprintf(stderr, "Codegen: Node cannot be null for lockin\n");
     return 1;
   } else {
     if (var_node->node_type != ASTN_VAR) {
+      fprintf(stderr, "Codegen: Expected ASTN_VAR for lockin, got node type %d\n", var_node->node_type);
       return 2;
     }
     fputs("call getchar\n", file);
     fputs("mov %eax, ", file);
     enum datatype_e type = codegen_gen_variable(file, var_node->u.var.name.ptr, var_node->u.var.name.len, st);
     if (type == DT_VOID) {
+      fprintf(stderr, "Codegen: Variable datatype cannot be void for lockin\n");
       return 3;
     }
     fputc('\n', file);
@@ -181,15 +184,18 @@ int codegen_gen_lockin67(FILE* const file, ASTNode* const lockin, struct ASTNode
   assert(lockin!= NULL);
   ASTNode* const var_node = astnode_stack_get_node(node_stack, lockin->u.lockin.var_idx);
   if (var_node == NULL) {
+    fprintf(stderr, "Codegen: Node cannot be null for lockin67\n");
     return 1;
   } else {
     if (var_node->node_type != ASTN_VAR) {
+      fprintf(stderr, "Codegen: Expected ASTN_VAR for lockin67, got node type %d\n", var_node->node_type);
       return 2;
     }
     fputs("call "CODEGEN_LOCKIN67_LABEL"\n", file);
     fputs("mov %eax, ", file);
     enum datatype_e type = codegen_gen_variable(file, var_node->u.var.name.ptr, var_node->u.var.name.len, st);
     if (type == DT_VOID) {
+      fprintf(stderr, "Codegen: Variable datatype cannot be void for lockin67\n");
       return 3;
     }
     fputc('\n', file);
@@ -210,6 +216,7 @@ int codegen_gen_var_or_int(FILE* const file, ASTNode* const value, const struct 
       codegen_gen_variable(file, value->u.var.name.ptr, value->u.var.name.len, st);
       break;
     default:
+      fprintf(stderr, "Codegen: Expected variable or int, got node type %d\n", value->node_type);
       return 1;
   }
   return 0;
@@ -305,7 +312,7 @@ int codegen_gen_function_call(FILE* const file, ASTNode* const function, struct 
     codegen_gen_arguments(file, first_arg, node_stack, st, 0);
   }
   fputs("call ", file);
-  codegen_gen_function_identifier(file, function);
+  codegen_gen_function_identifier_from_string(file, function->u.function_call.name.ptr, function->u.function_call.name.len);
   fputs("\nmovq -24(%rbp), %rsp\n", file);
   return 0;
 }
@@ -618,7 +625,7 @@ int codegen_gen_parameters(FILE* const file, struct VariableTable* parameters, c
 int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct ASTNodeStack* const node_stack, struct SymbolTable st) {
   assert(function != NULL);
   fputs( ".text\n", file);
-  codegen_gen_function_identifier(file, function);
+  codegen_gen_function_identifier_from_string(file, function->u.function_decl.name.ptr, function->u.function_decl.name.len);
   fputs(":\nmovq %rbp, -8(%rsp)\nmovq %rsp, -16(%rsp)\nmovq %rsp, %rbp\n", file);
   if (function->u.function_decl.has_parameters) {
     fprintf(file, "subq $%d, %%rsp\n", CODEGEN_FUNCTION_RESERVED_STACK_SPACE
@@ -628,7 +635,10 @@ int codegen_gen_function_decl(FILE* const file, ASTNode* const function, struct 
     for (size_t i = 0; i<function->u.function_decl.parameters.stack.occupied; ++i) {
       struct Variable* var = variable_table_get_var_at_index(&function->u.function_decl.parameters, i);
       assert(var != NULL);
-      if (var == NULL) { return 1; }
+      if (var == NULL) {
+        fprintf(stderr, "Codegen: parameter %d is null\n", (int)i);
+        return 1;
+      }
       variable_table_insert(&function->u.function_decl.local_variables, var->name.ptr, var->name.len, var->type);
     }
     int res = codegen_gen_parameters(file, &function->u.function_decl.parameters, base_offset);
@@ -655,14 +665,19 @@ int codegen_gen_globalization_decl(FILE* const file, ASTNode* const globalizatio
   (void)node_stack;
   (void)st;
   assert(globalization_decl != NULL);
-  if (globalization_decl->node_type != ASTN_GLOBL_DECL) { return 1; }
+  if (globalization_decl->node_type != ASTN_GLOBL_DECL) {
+    fprintf(stderr, "Codegen: Expected ASTN_GLOBL_DECL, got node type %d\n", globalization_decl->node_type);
+    return 1;
+  }
   assert (globalization_decl->u.globl_decl.function_name.ptr != NULL);
   assert (globalization_decl->u.globl_decl.function_name.len != 0);
   assert (globalization_decl->u.globl_decl.global_name.ptr != NULL);
   assert (globalization_decl->u.globl_decl.global_name.len != 0);
   fprintf(file, ".text\n.global %.*s\n", (int)globalization_decl->u.globl_decl.global_name.len, globalization_decl->u.globl_decl.global_name.ptr);
   fprintf(file, "%.*s:\n", (int)globalization_decl->u.globl_decl.global_name.len, globalization_decl->u.globl_decl.global_name.ptr);
-  fprintf(file, "jmp "CODEGEN_FUNCTION_PREFIX"%.*s\n\n", (int)globalization_decl->u.globl_decl.function_name.len, globalization_decl->u.globl_decl.function_name.ptr);
+  fputs("jmp ", file);
+  codegen_gen_function_identifier_from_string(file, globalization_decl->u.globl_decl.global_name.ptr, globalization_decl->u.globl_decl.function_name.len);
+  fputs("\n\n", file);
   return 0;
 }
 
@@ -670,14 +685,17 @@ int codegen_gen_localization_decl(FILE* const file, ASTNode* const localization_
   (void)node_stack;
   (void)st;
   assert(localization_decl != NULL);
-  if (localization_decl->node_type != ASTN_LOCAL_DECL) { return 1; }
+  if (localization_decl->node_type != ASTN_LOCAL_DECL) {
+    fprintf(stderr, "Codegen: Expected ASTN_LOCAL_DECL, got node type %d\n", localization_decl->node_type);
+    return 1;
+  }
   assert (localization_decl->u.local_decl.function_name.ptr != NULL);
   assert (localization_decl->u.local_decl.function_name.len != 0);
   assert (localization_decl->u.local_decl.global_name.ptr != NULL);
   assert (localization_decl->u.local_decl.global_name.len != 0);
   fprintf(file, ".extern %.*s\n.text\n", (int)localization_decl->u.local_decl.global_name.len, localization_decl->u.local_decl.global_name.ptr);
-  fprintf(file, CODEGEN_FUNCTION_PREFIX"%.*s:\n", (int)localization_decl->u.local_decl.function_name.len, localization_decl->u.local_decl.function_name.ptr);
-  fprintf(file, "jmp %.*s\n\n", (int)localization_decl->u.local_decl.global_name.len, localization_decl->u.local_decl.global_name.ptr);
+  codegen_gen_function_identifier_from_string(file, localization_decl->u.local_decl.function_name.ptr, localization_decl->u.local_decl.function_name.len);
+  fprintf(file, ":\njmp %.*s\n\n", (int)localization_decl->u.local_decl.global_name.len, localization_decl->u.local_decl.global_name.ptr);
   return 0;
 }
 

@@ -713,6 +713,7 @@ int parse_statement(struct Parser* const parser) {
   }
   t = parser_next(parser);
   if (t.tok_type != TOKT_SEMICOLON) {
+    fprintf(stderr, "Expected semicolon @%d:%d\n", t.line, t.col);
     node_idx = -1;
   }
   assert(node_idx != -1);
