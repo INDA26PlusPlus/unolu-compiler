@@ -1,0 +1,39 @@
+@ size -> ptr
+Localize .utilsMalloc malloc;
+@ ptr
+Localize .utilsFree free;
+@ ptr, offset -> value
+Localize .utilsReadByte read-byte;
+@ ptr, offset, value
+Localize .utilsWriteByte write-byte;
+
+Fun entry-point() Squad {
+	Uquad $ptr;
+	Assign malloc(26) To $ptr;
+	Yap67 $ptr;
+	Yap '
+';
+	Ubyte $b;
+	Assign 0 To $b;
+	Ubyte $c;
+	Assign 'A' To $c;
+	Loop {
+		If $b = 26 {
+			Break;
+		};
+		write-byte($ptr $b $c);
+		Assign $b + 1 To $b;
+		Assign $c + 1 To $c;
+	};
+	Assign 0 To $b;
+	Loop {
+		If $b = 26 {
+			Break;
+		};
+		Assign read-byte($ptr $b) To $c;
+		Yap $c;
+		Assign $b + 1 To $b;
+	};
+	free($ptr);
+	Throw 0;
+}

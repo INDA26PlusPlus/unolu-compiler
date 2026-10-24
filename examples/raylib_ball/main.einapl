@@ -1,0 +1,70 @@
+@ -> int
+Localize .GetScreenWidth get-screen-width;
+@ -> int
+Localize .GetScreenHeight get-screen-height;
+@ int -> void
+Localize .SetTargetFPS set-target-fps;
+@ -> bool
+Localize .WindowShouldClose window-should-close;
+@ int -> bool
+Localize .IsKeyPressed is-key-pressed;
+Localize .BeginDrawing begin-drawing;
+@ -> void
+Localize .ClearBackgroundWhite clear-bg-white;
+
+@ int x, int y, int r
+Localize .DrawCircleRed draw-circle-red;
+
+Localize .CloseWindow close-window;
+
+@ x, y
+Localize .DrawFPS draw-fps;
+
+Localize .EndDrawing end-drawing;
+Localize .InitWindowDefName init-window;
+
+@ Ball radius 20
+@ Gravity 1
+Fun entry-point() Squad {
+    @ Height, Width
+    init-window(400 400);
+    Squad $ball-pos-x;
+    Assign 200 To $ball-pos-x;
+    Squad $ball-pos-y;
+    Assign 200 To $ball-pos-y;
+    Squad $ball-speed-x;
+    Assign 5 To $ball-speed-x;
+    Squad $ball-speed-y;
+    Assign 4 To $ball-speed-y;
+    Ubyte $pause;
+    Assign 0 To $pause;
+    set-target-fps(60);
+    Loop {
+        If window-should-close() {
+            Break;
+        };
+        @ space
+        If is-key-pressed(32) {
+          Assign !$pause To $pause;  
+        };
+        If !$pause {
+            Assign $ball-pos-x + $ball-speed-x To $ball-pos-x; 
+            @ gravity is 1
+            Assign $ball-pos-y + $ball-speed-y + 1 To $ball-pos-y; 
+            @ ball radius +/-1
+            If ($ball-pos-x > get-screen-width() _ 21) Or ($ball-pos-x < 19) {
+                Assign $ball-speed-x * -1 To $ball-speed-x;
+            };
+            If ($ball-pos-y > get-screen-height() _ 21) Or ($ball-pos-y < 19) {
+                Assign $ball-speed-y * -1 To $ball-speed-y;
+            };
+        };
+        begin-drawing();
+        clear-bg-white();
+        draw-circle-red($ball-pos-x $ball-pos-y 20);
+        draw-fps(10 10);
+        end-drawing();
+    };
+    close-window();
+	Throw 0;
+}
