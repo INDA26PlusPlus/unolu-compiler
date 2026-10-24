@@ -369,6 +369,12 @@ int codegen_gen_binop(FILE* const file, ASTNode* const binop, struct ASTNodeStac
     case ASTN_BITXOR:
       fputs("xorl %r10d, %r11d\n", file);
       break;
+    case ASTN_GREAT:
+      fputs("cmp %r10d, %r11d\nmovl $0, %r11d\nsetg %r11b\n", file);
+      break;
+    case ASTN_LESS:
+      fputs("cmp %r10d, %r11d\nmovl $0, %r11d\nsetl %r11b\n", file);
+      break;
     case ASTN_EQUALITY:
       // mov does not affect the flags
       fputs("cmp %r10d, %r11d\nmovl $0, %r11d\nsete %r11b\n", file);
@@ -435,6 +441,8 @@ int codegen_gen_expression(FILE* const file, ASTNode* const expr, struct ASTNode
     case ASTN_BITAND:
     case ASTN_BITOR:
     case ASTN_BITXOR:
+    case ASTN_GREAT:
+    case ASTN_LESS:
     case ASTN_EQUALITY:
       res = codegen_gen_binop(file, expr, node_stack, st);
       return res;
