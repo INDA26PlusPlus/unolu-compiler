@@ -124,17 +124,20 @@ int codegen_gen_yap67(FILE* const file, ASTNode* const yap, struct ASTNodeStack*
     case ASTN_INT:
      fprintf(file, "$%d", value->u.integer);
      type = DT_SQUAD;
-     return 0;
+     break;
     case ASTN_UINT:
      fprintf(file, "$%u", value->u.uinteger);
      type = DT_UQUAD;
-     return 0;
+     break;
    case ASTN_VAR:
      ;
      type = codegen_gen_variable(file, value->u.var.name.ptr, value->u.var.name.len, st);
      if (type == DT_VOID) {
        fprintf(stderr, "Codegen: Variable datatype cannot be void for yap67\n");
        return 2;
+     }
+     if (type == DT_SBYTE || type == DT_UBYTE) {
+         fputs(", %esi\nandl $0xff, %esi\nmovl %esi" , file);
      }
      break;
     default:

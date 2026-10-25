@@ -4,11 +4,11 @@
 #include <stddef.h>
 
 enum datatype_e {
-  DT_VOID,
-  DT_UBYTE,
-  DT_SBYTE,
-  DT_UQUAD,
-  DT_SQUAD,
+  DT_VOID = 1,
+  DT_UBYTE = 2,
+  DT_SBYTE = 4,
+  DT_UQUAD = 8,
+  DT_SQUAD = 16,
 };
 
 struct Variable {
